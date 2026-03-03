@@ -104,7 +104,7 @@ async function runCycle() {
   console.log(`[cycle] Starting scout cycle at ${cycleStart}`);
 
   // 1. Scout — all sources run in parallel
-  console.log('[scout] Fetching Reddit, Google Trends, and prediction market signals...');
+  console.log('[scout] Fetching Reddit, Google Trends, and Polymarket signals...');
   const [redditSignals, trendsSignals, predictionSignals] = await Promise.all([
     scoutReddit().catch((err) => {
       console.warn(`[scout] Reddit failed: ${err.message}`);
@@ -124,7 +124,7 @@ async function runCycle() {
   console.log(
     `[scout] ${raw.length} signal(s) total` +
     ` (Reddit: ${redditSignals.length}, Trends: ${trendsSignals.length},` +
-    ` Prediction markets: ${predictionSignals.length})`
+    ` Polymarket: ${predictionSignals.length})`
   );
 
   // 2. Deduplicate against cache
