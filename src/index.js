@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 
 import scoutReddit from './scout/redditScout.js';
 import scoutTrends from './scout/trendsScout.js';
+import scoutPredictionMarkets from './scout/predictionMarketScout.js';
 import filterSignals from './filter/scorer.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { sendConcept, startBot, stopBot, getPendingLaunches } from './bot/telegramBot.js';
@@ -102,9 +103,9 @@ async function runCycle() {
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`[cycle] Starting scout cycle at ${cycleStart}`);
 
-  // 1. Scout — both sources run in parallel
-  console.log('[scout] Fetching Reddit and Google Trends signals...');
-  const [redditSignals, trendsSignals] = await Promise.all([
+  // 1. Scout — all sources run in parallel
+  console.log('[scout] Fetching Reddit, Google Trends, and prediction market signals...');
+  const [redditSignals, trendsSignals, predictionSignals] = await Promise.all([
     scoutReddit().catch((err) => {
       console.warn(`[scout] Reddit failed: ${err.message}`);
       return [];
@@ -113,12 +114,17 @@ async function runCycle() {
       console.warn(`[scout] Google Trends failed: ${err.message}`);
       return [];
     }),
+    scoutPredictionMarkets().catch((err) => {
+      console.warn(`[scout] Prediction markets failed: ${err.message}`);
+      return [];
+    }),
   ]);
 
-  const raw = [...redditSignals, ...trendsSignals];
+  const raw = [...redditSignals, ...trendsSignals, ...predictionSignals];
   console.log(
     `[scout] ${raw.length} signal(s) total` +
-    ` (Reddit: ${redditSignals.length}, Trends: ${trendsSignals.length})`
+    ` (Reddit: ${redditSignals.length}, Trends: ${trendsSignals.length},` +
+    ` Prediction markets: ${predictionSignals.length})`
   );
 
   // 2. Deduplicate against cache
