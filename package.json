@@ -1,0 +1,16 @@
+{
+  "name": "openclawd",
+  "version": "1.0.0",
+  "description": "Autonomous meme token scout system",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "dev": "node --env-file=.env --watch src/index.js"
+  },
+  "keywords": ["meme", "token", "scout", "crypto", "autonomous"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
