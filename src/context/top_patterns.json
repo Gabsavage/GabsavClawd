@@ -1,0 +1,933 @@
+{
+  "meta": {
+    "analysis_scope": "top_2000_by_total_volume_sol",
+    "total_tokens_in_dataset": 10000,
+    "generated_at": "2026-03-03T13:39:08.019Z"
+  },
+  "name_length": {
+    "description": "Distribution of token name character lengths among top 2000 tokens by volume",
+    "data": [
+      {
+        "range": "6-10",
+        "count": 669,
+        "avg_volume_sol": 2153.79
+      },
+      {
+        "range": "11-15",
+        "count": 521,
+        "avg_volume_sol": 2159.45
+      },
+      {
+        "range": "16-20",
+        "count": 339,
+        "avg_volume_sol": 2172.84
+      },
+      {
+        "range": "21+",
+        "count": 245,
+        "avg_volume_sol": 2155.11
+      },
+      {
+        "range": "1-5",
+        "count": 226,
+        "avg_volume_sol": 2172
+      }
+    ]
+  },
+  "ticker_length": {
+    "description": "Distribution of ticker symbol character lengths among top 2000 tokens",
+    "data": [
+      {
+        "range": "7+",
+        "count": 710,
+        "avg_volume_sol": 2154.47
+      },
+      {
+        "range": "3-4",
+        "count": 628,
+        "avg_volume_sol": 2166.52
+      },
+      {
+        "range": "5-6",
+        "count": 583,
+        "avg_volume_sol": 2170.24
+      },
+      {
+        "range": "1-2",
+        "count": 79,
+        "avg_volume_sol": 2100.25
+      }
+    ]
+  },
+  "name_casing_style": {
+    "description": "Casing styles in token names (multi_word = contains spaces/dashes)",
+    "data": [
+      {
+        "style": "multi_word",
+        "count": 1054,
+        "avg_volume_sol": 2153.24
+      },
+      {
+        "style": "TitleCase",
+        "count": 402,
+        "avg_volume_sol": 2168.88
+      },
+      {
+        "style": "all_lower",
+        "count": 346,
+        "avg_volume_sol": 2170.62
+      },
+      {
+        "style": "ALL_CAPS",
+        "count": 177,
+        "avg_volume_sol": 2184.56
+      },
+      {
+        "style": "mixed",
+        "count": 21,
+        "avg_volume_sol": 2014.93
+      }
+    ]
+  },
+  "ticker_casing_style": {
+    "description": "Casing styles in ticker symbols",
+    "data": [
+      {
+        "style": "ALL_CAPS",
+        "count": 958,
+        "avg_volume_sol": 2164.6
+      },
+      {
+        "style": "TitleCase",
+        "count": 682,
+        "avg_volume_sol": 2162.93
+      },
+      {
+        "style": "all_lower",
+        "count": 315,
+        "avg_volume_sol": 2151.46
+      },
+      {
+        "style": "multi_word",
+        "count": 28,
+        "avg_volume_sol": 2183.53
+      },
+      {
+        "style": "mixed",
+        "count": 17,
+        "avg_volume_sol": 1986.22
+      }
+    ]
+  },
+  "common_name_words": {
+    "description": "Most frequent meaningful words in token names (min 3 occurrences, stop-words excluded)",
+    "data": [
+      {
+        "word": "coin",
+        "count": 64,
+        "avg_volume_sol": 2128.75
+      },
+      {
+        "word": "dog",
+        "count": 29,
+        "avg_volume_sol": 2277.77
+      },
+      {
+        "word": "justice",
+        "count": 25,
+        "avg_volume_sol": 2086.01
+      },
+      {
+        "word": "ai",
+        "count": 21,
+        "avg_volume_sol": 2152.02
+      },
+      {
+        "word": "cat",
+        "count": 20,
+        "avg_volume_sol": 2131.01
+      },
+      {
+        "word": "horse",
+        "count": 16,
+        "avg_volume_sol": 2246.87
+      },
+      {
+        "word": "whale",
+        "count": 13,
+        "avg_volume_sol": 2538.19
+      },
+      {
+        "word": "claude",
+        "count": 12,
+        "avg_volume_sol": 2147.07
+      },
+      {
+        "word": "me",
+        "count": 12,
+        "avg_volume_sol": 2123.86
+      },
+      {
+        "word": "pepe",
+        "count": 12,
+        "avg_volume_sol": 2270.38
+      },
+      {
+        "word": "war",
+        "count": 12,
+        "avg_volume_sol": 2097.13
+      },
+      {
+        "word": "first",
+        "count": 11,
+        "avg_volume_sol": 2113.28
+      },
+      {
+        "word": "solana",
+        "count": 11,
+        "avg_volume_sol": 2326.62
+      },
+      {
+        "word": "just",
+        "count": 11,
+        "avg_volume_sol": 2120.8
+      },
+      {
+        "word": "penguin",
+        "count": 11,
+        "avg_volume_sol": 2087.46
+      },
+      {
+        "word": "cult",
+        "count": 11,
+        "avg_volume_sol": 2002.85
+      },
+      {
+        "word": "official",
+        "count": 10,
+        "avg_volume_sol": 2287.75
+      },
+      {
+        "word": "agent",
+        "count": 9,
+        "avg_volume_sol": 2172.25
+      },
+      {
+        "word": "meme",
+        "count": 9,
+        "avg_volume_sol": 2173.21
+      },
+      {
+        "word": "fish",
+        "count": 9,
+        "avg_volume_sol": 2018.75
+      },
+      {
+        "word": "guy",
+        "count": 9,
+        "avg_volume_sol": 1941.67
+      },
+      {
+        "word": "white",
+        "count": 8,
+        "avg_volume_sol": 2333.52
+      },
+      {
+        "word": "lobster",
+        "count": 8,
+        "avg_volume_sol": 2230.62
+      },
+      {
+        "word": "world",
+        "count": 8,
+        "avg_volume_sol": 2066.32
+      },
+      {
+        "word": "money",
+        "count": 8,
+        "avg_volume_sol": 2145.08
+      },
+      {
+        "word": "baby",
+        "count": 8,
+        "avg_volume_sol": 2155.37
+      },
+      {
+        "word": "token",
+        "count": 8,
+        "avg_volume_sol": 2226.87
+      },
+      {
+        "word": "black",
+        "count": 7,
+        "avg_volume_sol": 2674.02
+      },
+      {
+        "word": "life",
+        "count": 7,
+        "avg_volume_sol": 2318.12
+      },
+      {
+        "word": "runner",
+        "count": 7,
+        "avg_volume_sol": 2307.54
+      },
+      {
+        "word": "big",
+        "count": 7,
+        "avg_volume_sol": 2010.03
+      },
+      {
+        "word": "chan",
+        "count": 7,
+        "avg_volume_sol": 2094.89
+      },
+      {
+        "word": "year",
+        "count": 7,
+        "avg_volume_sol": 2281.42
+      },
+      {
+        "word": "girl",
+        "count": 6,
+        "avg_volume_sol": 2572.48
+      },
+      {
+        "word": "rainbow",
+        "count": 6,
+        "avg_volume_sol": 2414.24
+      },
+      {
+        "word": "one",
+        "count": 6,
+        "avg_volume_sol": 2295.05
+      },
+      {
+        "word": "new",
+        "count": 6,
+        "avg_volume_sol": 2453.52
+      },
+      {
+        "word": "frog",
+        "count": 6,
+        "avg_volume_sol": 2371.13
+      },
+      {
+        "word": "christmas",
+        "count": 6,
+        "avg_volume_sol": 1872.25
+      },
+      {
+        "word": "currency",
+        "count": 6,
+        "avg_volume_sol": 1932.07
+      },
+      {
+        "word": "chad",
+        "count": 5,
+        "avg_volume_sol": 2665.48
+      },
+      {
+        "word": "pump",
+        "count": 5,
+        "avg_volume_sol": 2579.68
+      },
+      {
+        "word": "change",
+        "count": 5,
+        "avg_volume_sol": 2274.18
+      },
+      {
+        "word": "protocol",
+        "count": 5,
+        "avg_volume_sol": 2648.47
+      },
+      {
+        "word": "index",
+        "count": 5,
+        "avg_volume_sol": 2054.69
+      },
+      {
+        "word": "elon",
+        "count": 5,
+        "avg_volume_sol": 2312.14
+      },
+      {
+        "word": "hat",
+        "count": 5,
+        "avg_volume_sol": 2163.37
+      },
+      {
+        "word": "free",
+        "count": 5,
+        "avg_volume_sol": 2211.66
+      },
+      {
+        "word": "project",
+        "count": 5,
+        "avg_volume_sol": 2037.47
+      },
+      {
+        "word": "hold",
+        "count": 5,
+        "avg_volume_sol": 2233.74
+      },
+      {
+        "word": "movement",
+        "count": 5,
+        "avg_volume_sol": 2095.75
+      },
+      {
+        "word": "gold",
+        "count": 5,
+        "avg_volume_sol": 2289.99
+      },
+      {
+        "word": "know",
+        "count": 5,
+        "avg_volume_sol": 2072.7
+      },
+      {
+        "word": "mayhem",
+        "count": 5,
+        "avg_volume_sol": 2311.75
+      },
+      {
+        "word": "so",
+        "count": 5,
+        "avg_volume_sol": 2140.39
+      },
+      {
+        "word": "robot",
+        "count": 5,
+        "avg_volume_sol": 1989.05
+      },
+      {
+        "word": "bitcoin",
+        "count": 5,
+        "avg_volume_sol": 2064.45
+      },
+      {
+        "word": "king",
+        "count": 5,
+        "avg_volume_sol": 2169.93
+      },
+      {
+        "word": "crypto",
+        "count": 5,
+        "avg_volume_sol": 1928.01
+      },
+      {
+        "word": "buy",
+        "count": 5,
+        "avg_volume_sol": 2010.24
+      }
+    ]
+  },
+  "ticker_prefixes": {
+    "description": "Most common 2-3 character prefixes in ticker symbols",
+    "data": [
+      {
+        "prefix": "CO",
+        "count": 40,
+        "avg_volume_sol": 2078.55
+      },
+      {
+        "prefix": "MO",
+        "count": 37,
+        "avg_volume_sol": 2177.8
+      },
+      {
+        "prefix": "CL",
+        "count": 35,
+        "avg_volume_sol": 2226.6
+      },
+      {
+        "prefix": "PE",
+        "count": 34,
+        "avg_volume_sol": 2223.4
+      },
+      {
+        "prefix": "CA",
+        "count": 34,
+        "avg_volume_sol": 2233.73
+      },
+      {
+        "prefix": "SO",
+        "count": 31,
+        "avg_volume_sol": 2211.09
+      },
+      {
+        "prefix": "GO",
+        "count": 28,
+        "avg_volume_sol": 2131
+      },
+      {
+        "prefix": "MA",
+        "count": 27,
+        "avg_volume_sol": 2149.19
+      },
+      {
+        "prefix": "MI",
+        "count": 26,
+        "avg_volume_sol": 2014.54
+      },
+      {
+        "prefix": "ME",
+        "count": 25,
+        "avg_volume_sol": 2014.02
+      },
+      {
+        "prefix": "CH",
+        "count": 24,
+        "avg_volume_sol": 2269.33
+      },
+      {
+        "prefix": "HO",
+        "count": 24,
+        "avg_volume_sol": 2134.71
+      },
+      {
+        "prefix": "CLA",
+        "count": 23,
+        "avg_volume_sol": 2187.51
+      },
+      {
+        "prefix": "PO",
+        "count": 23,
+        "avg_volume_sol": 2140.03
+      },
+      {
+        "prefix": "RE",
+        "count": 23,
+        "avg_volume_sol": 2233.59
+      },
+      {
+        "prefix": "SA",
+        "count": 23,
+        "avg_volume_sol": 2158.87
+      },
+      {
+        "prefix": "DO",
+        "count": 23,
+        "avg_volume_sol": 2045.82
+      },
+      {
+        "prefix": "BA",
+        "count": 22,
+        "avg_volume_sol": 2265.78
+      },
+      {
+        "prefix": "BO",
+        "count": 22,
+        "avg_volume_sol": 2301.13
+      },
+      {
+        "prefix": "DI",
+        "count": 22,
+        "avg_volume_sol": 2314.3
+      },
+      {
+        "prefix": "BE",
+        "count": 22,
+        "avg_volume_sol": 2164.27
+      },
+      {
+        "prefix": "BU",
+        "count": 21,
+        "avg_volume_sol": 2111.96
+      },
+      {
+        "prefix": "HA",
+        "count": 20,
+        "avg_volume_sol": 2105.58
+      },
+      {
+        "prefix": "SH",
+        "count": 20,
+        "avg_volume_sol": 2155.06
+      },
+      {
+        "prefix": "BL",
+        "count": 19,
+        "avg_volume_sol": 2285.17
+      },
+      {
+        "prefix": "DE",
+        "count": 19,
+        "avg_volume_sol": 2353.65
+      },
+      {
+        "prefix": "PI",
+        "count": 19,
+        "avg_volume_sol": 2173.1
+      },
+      {
+        "prefix": "CR",
+        "count": 19,
+        "avg_volume_sol": 2039.37
+      },
+      {
+        "prefix": "TI",
+        "count": 18,
+        "avg_volume_sol": 1969.9
+      },
+      {
+        "prefix": "AL",
+        "count": 18,
+        "avg_volume_sol": 2153.71
+      }
+    ]
+  },
+  "ticker_suffixes": {
+    "description": "Most common 2-3 character suffixes in ticker symbols",
+    "data": [
+      {
+        "suffix": "IN",
+        "count": 69,
+        "avg_volume_sol": 2149.46
+      },
+      {
+        "suffix": "ER",
+        "count": 58,
+        "avg_volume_sol": 2196.36
+      },
+      {
+        "suffix": "OIN",
+        "count": 37,
+        "avg_volume_sol": 2142.6
+      },
+      {
+        "suffix": "AN",
+        "count": 36,
+        "avg_volume_sol": 2266.79
+      },
+      {
+        "suffix": "LE",
+        "count": 34,
+        "avg_volume_sol": 2247.1
+      },
+      {
+        "suffix": "NG",
+        "count": 34,
+        "avg_volume_sol": 2219.43
+      },
+      {
+        "suffix": "ON",
+        "count": 33,
+        "avg_volume_sol": 2101.95
+      },
+      {
+        "suffix": "AR",
+        "count": 25,
+        "avg_volume_sol": 2166.6
+      },
+      {
+        "suffix": "ING",
+        "count": 25,
+        "avg_volume_sol": 2232.65
+      },
+      {
+        "suffix": "US",
+        "count": 24,
+        "avg_volume_sol": 2005.76
+      },
+      {
+        "suffix": "ED",
+        "count": 23,
+        "avg_volume_sol": 2237.98
+      },
+      {
+        "suffix": "OR",
+        "count": 23,
+        "avg_volume_sol": 2091.78
+      },
+      {
+        "suffix": "LL",
+        "count": 23,
+        "avg_volume_sol": 2055.37
+      },
+      {
+        "suffix": "EN",
+        "count": 22,
+        "avg_volume_sol": 2196.53
+      },
+      {
+        "suffix": "SE",
+        "count": 21,
+        "avg_volume_sol": 2220.15
+      },
+      {
+        "suffix": "SH",
+        "count": 20,
+        "avg_volume_sol": 2067.37
+      },
+      {
+        "suffix": "PE",
+        "count": 20,
+        "avg_volume_sol": 2192.73
+      },
+      {
+        "suffix": "NE",
+        "count": 19,
+        "avg_volume_sol": 2145.95
+      },
+      {
+        "suffix": "ES",
+        "count": 18,
+        "avg_volume_sol": 2131.48
+      },
+      {
+        "suffix": "AT",
+        "count": 17,
+        "avg_volume_sol": 2432.64
+      },
+      {
+        "suffix": "NA",
+        "count": 17,
+        "avg_volume_sol": 2281.21
+      },
+      {
+        "suffix": "CK",
+        "count": 17,
+        "avg_volume_sol": 2163.5
+      },
+      {
+        "suffix": "RD",
+        "count": 17,
+        "avg_volume_sol": 2139.53
+      },
+      {
+        "suffix": "AL",
+        "count": 17,
+        "avg_volume_sol": 2166.36
+      },
+      {
+        "suffix": "RO",
+        "count": 16,
+        "avg_volume_sol": 2121.27
+      },
+      {
+        "suffix": "RK",
+        "count": 16,
+        "avg_volume_sol": 1992.6
+      },
+      {
+        "suffix": "OG",
+        "count": 16,
+        "avg_volume_sol": 2058.23
+      },
+      {
+        "suffix": "AI",
+        "count": 15,
+        "avg_volume_sol": 2236.68
+      },
+      {
+        "suffix": "IA",
+        "count": 15,
+        "avg_volume_sol": 2056.04
+      },
+      {
+        "suffix": "RA",
+        "count": 15,
+        "avg_volume_sol": 2123.06
+      }
+    ]
+  },
+  "name_first_words": {
+    "description": "Most common first words in token names",
+    "data": [
+      {
+        "prefix": "the",
+        "count": 190,
+        "avg_volume_sol": 2154.34
+      },
+      {
+        "prefix": "justice",
+        "count": 25,
+        "avg_volume_sol": 2086.01
+      },
+      {
+        "prefix": "claude",
+        "count": 7,
+        "avg_volume_sol": 2099.9
+      },
+      {
+        "prefix": "this",
+        "count": 7,
+        "avg_volume_sol": 2020.8
+      },
+      {
+        "prefix": "solana",
+        "count": 6,
+        "avg_volume_sol": 2352.87
+      },
+      {
+        "prefix": "big",
+        "count": 6,
+        "avg_volume_sol": 2059.13
+      },
+      {
+        "prefix": "first",
+        "count": 6,
+        "avg_volume_sol": 2010.43
+      },
+      {
+        "prefix": "just",
+        "count": 6,
+        "avg_volume_sol": 1992.98
+      },
+      {
+        "prefix": "world",
+        "count": 5,
+        "avg_volume_sol": 2145.11
+      },
+      {
+        "prefix": "free",
+        "count": 5,
+        "avg_volume_sol": 2211.66
+      },
+      {
+        "prefix": "ai",
+        "count": 5,
+        "avg_volume_sol": 2162.38
+      },
+      {
+        "prefix": "we",
+        "count": 5,
+        "avg_volume_sol": 2146.84
+      },
+      {
+        "prefix": "dog",
+        "count": 5,
+        "avg_volume_sol": 1998.27
+      },
+      {
+        "prefix": "rainbow",
+        "count": 4,
+        "avg_volume_sol": 2699.06
+      },
+      {
+        "prefix": "x402",
+        "count": 4,
+        "avg_volume_sol": 2471.02
+      },
+      {
+        "prefix": "elon",
+        "count": 4,
+        "avg_volume_sol": 2434.23
+      },
+      {
+        "prefix": "project",
+        "count": 4,
+        "avg_volume_sol": 2093.09
+      },
+      {
+        "prefix": "bart",
+        "count": 4,
+        "avg_volume_sol": 2324.87
+      },
+      {
+        "prefix": "what",
+        "count": 4,
+        "avg_volume_sol": 2166.94
+      },
+      {
+        "prefix": "white",
+        "count": 4,
+        "avg_volume_sol": 2110.04
+      },
+      {
+        "prefix": "nietzschean",
+        "count": 4,
+        "avg_volume_sol": 2146.06
+      },
+      {
+        "prefix": "i'm",
+        "count": 4,
+        "avg_volume_sol": 2090.64
+      },
+      {
+        "prefix": "pump",
+        "count": 3,
+        "avg_volume_sol": 3002.51
+      },
+      {
+        "prefix": "infinite",
+        "count": 3,
+        "avg_volume_sol": 2362.15
+      },
+      {
+        "prefix": "official",
+        "count": 3,
+        "avg_volume_sol": 2669.76
+      },
+      {
+        "prefix": "on",
+        "count": 3,
+        "avg_volume_sol": 2316.63
+      },
+      {
+        "prefix": "it",
+        "count": 3,
+        "avg_volume_sol": 2237.9
+      },
+      {
+        "prefix": "michael",
+        "count": 3,
+        "avg_volume_sol": 2265.13
+      },
+      {
+        "prefix": "mayhem",
+        "count": 3,
+        "avg_volume_sol": 2391.5
+      },
+      {
+        "prefix": "goon",
+        "count": 3,
+        "avg_volume_sol": 2261.46
+      }
+    ]
+  },
+  "structural_patterns": {
+    "description": "Structural characteristics of successful token names",
+    "data": [
+      {
+        "pattern": "single_word",
+        "count": 758,
+        "avg_volume_sol": 2160.15,
+        "example": "Basis"
+      },
+      {
+        "pattern": "multi_word",
+        "count": 1242,
+        "avg_volume_sol": 2164.1,
+        "example": "go fuck your pussy"
+      },
+      {
+        "pattern": "contains_number",
+        "count": 106,
+        "avg_volume_sol": 2171.73,
+        "example": "Token2022"
+      },
+      {
+        "pattern": "contains_special_char",
+        "count": 199,
+        "avg_volume_sol": 2188.42,
+        "example": "Rainbow Fish’s Father"
+      },
+      {
+        "pattern": "all_caps_name",
+        "count": 177,
+        "avg_volume_sol": 2184.56,
+        "example": "MULLER"
+      },
+      {
+        "pattern": "exclamation_mark",
+        "count": 1,
+        "avg_volume_sol": 2542.79,
+        "example": "Invite Me In!"
+      }
+    ]
+  }
+}
