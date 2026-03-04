@@ -7,7 +7,7 @@ const CONTEXT_DIR = path.join(__dirname, '..', 'context');
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
-const CONCURRENCY = 3;
+const CONCURRENCY = 1;
 
 // ---------------------------------------------------------------------------
 // Load pump.fun market context once at module init
@@ -72,34 +72,53 @@ Pattern insights:
 const MARKET_CONTEXT_BLOCK = buildMarketContext();
 
 function buildPrompt(signal) {
-  return `You are a crypto degen who lives on CT (Crypto Twitter) and has a gift for turning internet moments into viral meme tokens. You've studied every successful meme coin — $DOGE, $PEPE, $WIF, $BONK, $BRETT, $MOODENG, $SendBarron — and you understand exactly what makes them resonate: they're simple, emotional, immediately understandable, and tap into a shared cultural moment.
+  const sourceLabel = signal.subreddit === 'polymarket' ? 'Polymarket' : `r/${signal.subreddit}`;
+  return `You are a degenerate crypto trader with a dark sense of humor and a gift for meme token names. You've made and lost fortunes on $PEPE, $WIF, $BONK, $MOODENG, $BRETT, $TRUMP, $RICO, $JUDY. You know what makes a degen ape in: it's never the description — it's the NAME and TICKER. One word. Instantly funny. Immediately memeable.
 ${MARKET_CONTEXT_BLOCK}
 You've been handed this high-potential signal:
 
 Title: "${signal.title}"
-Subreddit: r/${signal.subreddit}
-Reddit Score: ${signal.redditScore}
-AI Score: ${signal.score}/100
+Source: ${sourceLabel}
+Score: ${signal.score}/100
 Reasoning: "${signal.reasoning}"
 Angle: "${signal.angle}"
 
-Your job: create a meme token concept that captures the satirical/emotional core of this signal.
+Your job: create the NAME and TICKER first. Everything else follows from those.
 
-Rules:
-- Think like a degen, not a marketer
-- Be satirical, unexpected, and timely — not generic
-- The name must feel inevitable in hindsight, like it couldn't be anything else
-- Study the "angle" field hard — that's your creative seed
-- Use the market data above to pick a theme and naming style that actually sells
-- The imagePrompt should be vivid, specific, and weird enough to go viral
+THE GOLDEN RULE: Names and tickers must be SHORT, PUNCHY, and FUNNY. Not descriptive. Not literal. Absurdist, dark, or deeply internet-brained.
+
+GOOD examples of the energy you're going for:
+- $RICO (from RICO charges angle — sounds like a person, sounds illegal, instantly funny)
+- $JUDY (from a judge angle — unexpected, human name, makes you laugh)
+- $KHAMESTONKS (Khamenei + stonks — absurd mashup, self-explanatory)
+- NUKE IRAN (direct, shocking, memeable — you either love it or hate it)
+- JAMES 2028 (sounds like a real campaign, but it's a meme)
+- $MOSSAD (one word, implies everything, says nothing)
+- $PALANTIR (appropriates a serious brand for chaos)
+
+BAD examples — do NOT do this:
+- "The Strike Protocol" (sounds like a Netflix thriller, not a meme coin)
+- "The Supreme Departure" (pretentious, zero laughs)
+- "The Fed Chair Pump" (corporate speak, not a degen name)
+- $PUMPCOIN, $VOTETOKEN, $REGIMECHANGE (generic, unfunny, immediately forgettable)
+
+BANNED ticker words — never use these as tickers: PUMP, VOTE, CLOSE, STRIKE, REGIME, COIN, TOKEN, MOON, DEGEN, BASED, CHAD
+
+NAMING STYLE GUIDE:
+- Best: one unexpected word that captures the whole vibe ($JUDY, $RICO, $MOSSAD)
+- Good: absurd mashup that makes people laugh ($KHAMESTONKS, $MOODENG)
+- Good: a phrase so on-the-nose it becomes meme (NUKE IRAN, JAMES 2028)
+- Avoid: anything that explains itself in the name
+
+Tickers should feel like something a degen would ACTUALLY ape into at 2am.
 
 Return ONLY a JSON object with exactly these fields:
 {
-  "name": "token name (max 25 chars, punchy, no $ prefix)",
-  "ticker": "3-6 char symbol (uppercase, no $)",
-  "description": "1-2 sentence token description, humorous and on-point",
-  "narrative": "the satirical/emotional angle in 1 sentence",
-  "imagePrompt": "detailed image generation prompt for the token mascot/logo"
+  "name": "token name (max 25 chars, punchy, no $ prefix — use the naming guide above)",
+  "ticker": "3-6 char symbol (uppercase, no $ — must feel like a degen would ape this)",
+  "description": "1-2 sentence token description, dark humor welcome, no corporate speak",
+  "narrative": "the satirical/emotional angle in 1 sentence — why does this exist?",
+  "imagePrompt": "detailed image generation prompt for the token mascot/logo — make it weird and specific"
 }
 
 No markdown. No explanation. No code fences. Just the JSON object.`;
@@ -109,19 +128,35 @@ async function generateConcept(signal) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY environment variable is not set');
 
-  const res = await fetch(CLAUDE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 512,
-      messages: [{ role: 'user', content: buildPrompt(signal) }],
-    }),
-  });
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 10_000;
+
+  let res;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    res = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 512,
+        messages: [{ role: 'user', content: buildPrompt(signal) }],
+      }),
+    });
+
+    if (res.ok || res.status !== 529) break;
+
+    const body = await res.text();
+    if (attempt < MAX_RETRIES) {
+      console.warn(`[conceptGenerator] 529 overloaded (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    } else {
+      throw new Error(`Claude API error ${res.status}: ${body}`);
+    }
+  }
 
   if (!res.ok) {
     const body = await res.text();
@@ -151,6 +186,10 @@ async function generateConcepts(signals) {
       } else {
         console.warn(`[conceptGenerator] Skipping signal: ${outcome.reason.message}`);
       }
+    }
+
+    if (i + CONCURRENCY < signals.length) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
   }
 

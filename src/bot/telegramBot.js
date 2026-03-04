@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { minScore, setMinScore } from '../filter/scorer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOT_TOPICS_PATH = path.join(__dirname, 'hotTopics.json');
@@ -14,6 +15,10 @@ let conceptCounter = 0;
 let awaitingModify = null;    // { chatId, conceptId } — set while waiting for Modify reply
 let pollOffset = 0;
 let polling = false;
+
+// Injected callbacks from index.js
+let runCycleCallback = null;
+let getStatsCallback = null;
 
 // ---------------------------------------------------------------------------
 // Telegram API helpers
@@ -40,17 +45,33 @@ function esc(text) {
     .replace(/>/g, '&gt;');
 }
 
+function formatSource(concept) {
+  if (concept.subreddit === 'polymarket') return 'Polymarket';
+  if (concept.subreddit === 'google_trends') return 'Google Trends';
+  return `r/${concept.subreddit}`;
+}
+
+function formatDate(d) {
+  if (!d) return 'unknown';
+  const date = d instanceof Date ? d : new Date(d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 // ---------------------------------------------------------------------------
 // Message formatting
 // ---------------------------------------------------------------------------
 
 function formatConcept(concept) {
-  return [
+  const lines = [
     `🚨 <b>New Meme Token Signal</b>`,
     ``,
     `📰 <b>Signal</b>`,
     `Title: ${esc(concept.title)}`,
-    `Source: r/${esc(concept.subreddit)}`,
+    `Source: ${esc(formatSource(concept))}`,
+    `Date: ${esc(formatDate(concept.created_at))}`,
+  ];
+  if (concept.url) lines.push(`URL: ${esc(concept.url)}`);
+  lines.push(
     ``,
     `🪙 <b>Token Concept</b>`,
     `Name: <b>${esc(concept.name)}</b>  |  Ticker: <code>$${esc(concept.ticker)}</code>`,
@@ -59,7 +80,8 @@ function formatConcept(concept) {
     ``,
     `📊 <b>Score:</b> ${concept.score}/100`,
     `🧠 <b>Reasoning:</b> ${esc(concept.reasoning)}`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 function buildKeyboard(conceptId) {
@@ -171,12 +193,114 @@ async function handleCallbackQuery(query) {
 }
 
 // ---------------------------------------------------------------------------
+// Slash command handler
+// ---------------------------------------------------------------------------
+
+async function handleCommand(text, chatId) {
+  const parts = text.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+
+  switch (cmd) {
+    case '/help': {
+      await tgPost('sendMessage', {
+        chat_id: chatId,
+        parse_mode: 'HTML',
+        text: [
+          '<b>Available commands</b>',
+          '',
+          '/status — last cycle stats',
+          '/pending — list queued token launches',
+          '/forcecycle — trigger a scout cycle now',
+          '/threshold &lt;number&gt; — set min score (e.g. /threshold 65)',
+          '/help — show this message',
+        ].join('\n'),
+      });
+      break;
+    }
+
+    case '/status': {
+      const stats = getStatsCallback?.() ?? {};
+      await tgPost('sendMessage', {
+        chat_id: chatId,
+        parse_mode: 'HTML',
+        text: [
+          '<b>Scout Status</b>',
+          '',
+          `Last cycle: ${stats.lastCycleAt ? esc(stats.lastCycleAt) : 'not run yet'}`,
+          `Signals found: ${stats.totalSignals ?? 0}`,
+          `Passed filter: ${stats.passedFilter ?? 0}`,
+          `Concepts generated: ${stats.conceptsGenerated ?? 0}`,
+          `Pending launches: ${pendingLaunches.length}`,
+          `Score threshold: ${minScore}`,
+        ].join('\n'),
+      });
+      break;
+    }
+
+    case '/pending': {
+      if (pendingLaunches.length === 0) {
+        await tgPost('sendMessage', { chat_id: chatId, text: 'No pending launches.' });
+        break;
+      }
+      const list = pendingLaunches
+        .map((c, i) => `${i + 1}. <b>${esc(c.name)}</b> <code>$${esc(c.ticker)}</code> — score ${c.score}`)
+        .join('\n');
+      await tgPost('sendMessage', {
+        chat_id: chatId,
+        parse_mode: 'HTML',
+        text: `<b>Pending Launches (${pendingLaunches.length})</b>\n\n${list}`,
+      });
+      break;
+    }
+
+    case '/forcecycle': {
+      if (!runCycleCallback) {
+        await tgPost('sendMessage', { chat_id: chatId, text: '⚠️ Cycle runner not available.' });
+        break;
+      }
+      await tgPost('sendMessage', { chat_id: chatId, text: '🔄 Triggering scout cycle...' });
+      runCycleCallback().catch((err) =>
+        console.warn(`[telegramBot] Force cycle error: ${err.message}`)
+      );
+      break;
+    }
+
+    case '/threshold': {
+      const n = parseInt(parts[1], 10);
+      if (isNaN(n) || n < 0 || n > 100) {
+        await tgPost('sendMessage', {
+          chat_id: chatId,
+          parse_mode: 'HTML',
+          text: '⚠️ Usage: /threshold &lt;0–100&gt;',
+        });
+        break;
+      }
+      setMinScore(n);
+      await tgPost('sendMessage', {
+        chat_id: chatId,
+        parse_mode: 'HTML',
+        text: `✅ Score threshold updated to <b>${n}</b>`,
+      });
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Text message handler (Modify reply flow)
 // ---------------------------------------------------------------------------
 
 async function handleMessage(message) {
+  const text = message.text?.trim() ?? '';
+  const chatId = message.chat.id;
+
+  if (text.startsWith('/')) {
+    await handleCommand(text, chatId);
+    return;
+  }
+
   if (!awaitingModify) return;
-  if (message.chat.id !== awaitingModify.chatId) return;
+  if (chatId !== awaitingModify.chatId) return;
 
   const { conceptId } = awaitingModify;
   awaitingModify = null;
@@ -232,7 +356,13 @@ async function poll() {
   try {
     const res = await fetch(`${API()}/getUpdates?offset=${pollOffset}&timeout=30`);
     if (!res.ok) {
-      console.warn(`[telegramBot] Polling ${res.status} — retrying`);
+      if (res.status === 401) {
+        console.error('[telegramBot] Polling 401 — invalid TELEGRAM_BOT_TOKEN, stopping bot');
+        polling = false;
+        return;
+      }
+      console.warn(`[telegramBot] Polling ${res.status} — retrying in 5s`);
+      await new Promise((r) => setTimeout(r, 5000));
       return;
     }
     const data = await res.json();
@@ -253,7 +383,9 @@ async function poll() {
   }
 }
 
-function startBot() {
+function startBot({ runCycle, getStats } = {}) {
+  runCycleCallback = runCycle ?? null;
+  getStatsCallback = getStats ?? null;
   if (polling) return;
   polling = true;
   console.log('[telegramBot] Bot started — listening for updates');
