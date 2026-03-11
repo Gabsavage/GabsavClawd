@@ -1,130 +1,38 @@
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONTEXT_DIR = path.join(__dirname, '..', 'context');
+import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept } from '../database/db.js';
+import { getRecentTokens } from '../scout/webSocketScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
-const CONCURRENCY = 1;
+const CONCURRENCY = 3;
 
 // ---------------------------------------------------------------------------
-// Load pump.fun market context once at module init
+// Shared rules appended to every prompt
 // ---------------------------------------------------------------------------
 
-function loadContext() {
-  try {
-    const themes = JSON.parse(readFileSync(path.join(CONTEXT_DIR, 'top_themes.json'), 'utf-8'));
-    const examples = JSON.parse(readFileSync(path.join(CONTEXT_DIR, 'top_examples.json'), 'utf-8'));
-    const patterns = JSON.parse(readFileSync(path.join(CONTEXT_DIR, 'top_patterns.json'), 'utf-8'));
-    return { themes, examples, patterns };
-  } catch {
-    return null;
-  }
-}
+const CRITICAL_RULES = `
+CRITICAL RULES FOR TOKEN CONCEPTS:
+- Name: short, punchy, FUNNY — maximum 4 words, ideally 1-2
+- Ticker: 3-5 chars, degen energy, never generic words (no VOTE, STRIKE, REGIME, PUMP, COIN)
+- Tone: absurdist, dark humor, internet culture — never serious or corporate
+- GOOD examples: $PUNCH, $RICO, $JUDY, $KHAMESTONKS, $MOSSAD, $BRON, $NUKE
+- BAD examples: 'The Strike Protocol $STRIKE', 'The Fed Chair Pump $FDRUMP', 'The Supreme Departure $SUPREME'
+- Think: what would a Solana degen actually ape into at 2am?
 
-const MARKET_CONTEXT = loadContext();
-
-function buildMarketContext() {
-  if (!MARKET_CONTEXT) return '';
-
-  const { themes, examples, patterns } = MARKET_CONTEXT;
-
-  // Top 5 themes by avg volume
-  const topThemes = themes.themes
-    .slice(0, 5)
-    .map((t) => `  - ${t.label} (avg ${t.avg_volume_sol.toFixed(0)} SOL/token): e.g. ${t.top_examples.slice(0, 2).map((e) => `"${e.name}" ($${e.ticker})`).join(', ')}`)
-    .join('\n');
-
-  // Top 10 all-time tokens
-  const topTokens = examples
-    .slice(0, 10)
-    .map((e) => `  - "${e.name}" ($${e.ticker}) — ${e.total_volume_sol.toFixed(0)} SOL`)
-    .join('\n');
-
-  // Key naming patterns
-  const bestNameWords = patterns.common_name_words.data
-    .sort((a, b) => b.avg_volume_sol - a.avg_volume_sol)
-    .slice(0, 8)
-    .map((w) => w.word)
-    .join(', ');
-
-  return `
-REAL PUMP.FUN MARKET DATA (use this to calibrate your concept):
-
-Top themes by trading volume:
-${topThemes}
-
-All-time highest volume tokens:
-${topTokens}
-
-High-performing name keywords: ${bestNameWords}
-
-Pattern insights:
-- Names 6-20 chars perform best; multi-word names are common and work well
-- Tickers: 3-6 chars, ALL_CAPS or TitleCase dominate
-- "The ___" prefix is most common (190 tokens); works for gravitas
-- Unexpected adjective+noun combos ("Goth Girl Spit", "Garlic Model") outperform generic names
-`;
-}
-
-const MARKET_CONTEXT_BLOCK = buildMarketContext();
-
-function buildPrompt(signal) {
-  const sourceLabel = signal.subreddit === 'polymarket' ? 'Polymarket' : `r/${signal.subreddit}`;
-  return `You are a degenerate crypto trader with a dark sense of humor and a gift for meme token names. You've made and lost fortunes on $PEPE, $WIF, $BONK, $MOODENG, $BRETT, $TRUMP, $RICO, $JUDY. You know what makes a degen ape in: it's never the description — it's the NAME and TICKER. One word. Instantly funny. Immediately memeable.
-${MARKET_CONTEXT_BLOCK}
-You've been handed this high-potential signal:
-
-Title: "${signal.title}"
-Source: ${sourceLabel}
-Score: ${signal.score}/100
-Reasoning: "${signal.reasoning}"
-Angle: "${signal.angle}"
-
-Your job: create the NAME and TICKER first. Everything else follows from those.
-
-THE GOLDEN RULE: Names and tickers must be SHORT, PUNCHY, and FUNNY. Not descriptive. Not literal. Absurdist, dark, or deeply internet-brained.
-
-GOOD examples of the energy you're going for:
-- $RICO (from RICO charges angle — sounds like a person, sounds illegal, instantly funny)
-- $JUDY (from a judge angle — unexpected, human name, makes you laugh)
-- $KHAMESTONKS (Khamenei + stonks — absurd mashup, self-explanatory)
-- NUKE IRAN (direct, shocking, memeable — you either love it or hate it)
-- JAMES 2028 (sounds like a real campaign, but it's a meme)
-- $MOSSAD (one word, implies everything, says nothing)
-- $PALANTIR (appropriates a serious brand for chaos)
-
-BAD examples — do NOT do this:
-- "The Strike Protocol" (sounds like a Netflix thriller, not a meme coin)
-- "The Supreme Departure" (pretentious, zero laughs)
-- "The Fed Chair Pump" (corporate speak, not a degen name)
-- $PUMPCOIN, $VOTETOKEN, $REGIMECHANGE (generic, unfunny, immediately forgettable)
-
-BANNED ticker words — never use these as tickers: PUMP, VOTE, CLOSE, STRIKE, REGIME, COIN, TOKEN, MOON, DEGEN, BASED, CHAD
-
-NAMING STYLE GUIDE:
-- Best: one unexpected word that captures the whole vibe ($JUDY, $RICO, $MOSSAD)
-- Good: absurd mashup that makes people laugh ($KHAMESTONKS, $MOODENG)
-- Good: a phrase so on-the-nose it becomes meme (NUKE IRAN, JAMES 2028)
-- Avoid: anything that explains itself in the name
-
-Tickers should feel like something a degen would ACTUALLY ape into at 2am.
-
-Return ONLY a JSON object with exactly these fields:
+Return JSON only:
 {
-  "name": "token name (max 25 chars, punchy, no $ prefix — use the naming guide above)",
-  "ticker": "3-6 char symbol (uppercase, no $ — must feel like a degen would ape this)",
-  "description": "1-2 sentence token description, dark humor welcome, no corporate speak",
-  "narrative": "the satirical/emotional angle in 1 sentence — why does this exist?",
-  "imagePrompt": "detailed image generation prompt for the token mascot/logo — make it weird and specific"
-}
+  "name": string,
+  "ticker": string,
+  "description": string (max 2 sentences, punchy),
+  "narrative": string (max 2 sentences, why it will pump),
+  "image_prompt": string (visual description for image generation),
+  "flux": "1" | "2" | "3"
+}`;
 
-No markdown. No explanation. No code fences. Just the JSON object.`;
-}
+// ---------------------------------------------------------------------------
+// Claude API call with retry on 529
+// ---------------------------------------------------------------------------
 
-async function generateConcept(signal) {
+async function callClaude(prompt) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY environment variable is not set');
 
@@ -143,18 +51,15 @@ async function generateConcept(signal) {
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 512,
-        messages: [{ role: 'user', content: buildPrompt(signal) }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
     if (res.ok || res.status !== 529) break;
 
-    const body = await res.text();
     if (attempt < MAX_RETRIES) {
       console.warn(`[conceptGenerator] 529 overloaded (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS / 1000}s...`);
       await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-    } else {
-      throw new Error(`Claude API error ${res.status}: ${body}`);
     }
   }
 
@@ -167,34 +72,176 @@ async function generateConcept(signal) {
   const text = json.content?.[0]?.text;
   if (!text) throw new Error('Claude returned no content');
 
-  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/,'').trim();
-  const concept = JSON.parse(clean);
-
-  return { ...signal, ...concept };
+  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  return JSON.parse(clean);
 }
 
-async function generateConcepts(signals) {
+// ---------------------------------------------------------------------------
+// FLUX 1 — World → Crypto
+// ---------------------------------------------------------------------------
+
+async function generateFromSignal(signal) {
+  const themes = getTopThemes(5);
+  const formats = getTopFormats(5);
+
+  const themesBlock = themes.map((t) => `  - ${t.theme} (${t.count} tokens)`).join('\n');
+  const formatsBlock = formats.map((f) => `  - ${f.format} (${f.count} tokens)`).join('\n');
+
+  const prompt = `You are a degenerate Solana trader who invents meme coins. A viral news topic just broke — be FIRST to tokenize it before anyone else.
+
+TRENDING TOPIC: ${signal.topic}
+SUMMARY: ${signal.summary}
+MEME POTENTIAL: ${signal.meme_potential}/10
+KEYWORDS: ${(signal.keywords || []).join(', ')}
+CATEGORY: ${signal.category}
+
+TOP PERFORMING THEMES on pump.fun right now:
+${themesBlock}
+
+TOP PERFORMING FORMATS on pump.fun right now:
+${formatsBlock}
+
+Your goal: create a token concept that hasn't been done yet. This topic is fresh — own it.
+${CRITICAL_RULES}`;
+
+  const concept = await callClaude(prompt);
+  return { ...concept, flux: '1', source_signal: signal.topic };
+}
+
+// ---------------------------------------------------------------------------
+// FLUX 2 — Crypto → Crypto
+// ---------------------------------------------------------------------------
+
+async function generateVariants(migrations) {
+  if (!migrations || migrations.length === 0) return [];
+
+  const migrationList = migrations
+    .map((t) => `  - "${t.name}" ($${t.ticker}) | theme: ${t.theme || 'unknown'} | format: ${t.format || 'unknown'}`)
+    .join('\n');
+
+  const prompt = `You are a degenerate Solana trader studying what just pumped and migrated. These tokens just successfully migrated on pump.fun — they are proven winners:
+
+RECENTLY MIGRATED TOKENS:
+${migrationList}
+
+Your goal: create a fresh variant or remix of the energy that made these pump. Don't copy — evolve. Find the pattern and push it further or flip it sideways.
+${CRITICAL_RULES}`;
+
+  const concept = await callClaude(prompt);
+  return { ...concept, flux: '2', source_migrations: migrations.map((t) => t.ticker).join(', ') };
+}
+
+// ---------------------------------------------------------------------------
+// FLUX 3 — World → Crypto → Crypto
+// ---------------------------------------------------------------------------
+
+async function generateCrossover(signal) {
+  const similar = searchSimilarTokens(signal.keywords || []);
+
+  if (!similar || similar.length === 0) {
+    console.log(`[conceptGenerator] Flux 3: no similar tokens found for "${signal.topic}", falling back to Flux 1`);
+    const concept = await generateFromSignal(signal);
+    return { ...concept, flux: '3' };
+  }
+
+  const historicalBlock = similar
+    .slice(0, 5)
+    .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0) || 0} SOL volume | theme: ${t.theme || 'unknown'}`)
+    .join('\n');
+
+  const prompt = `You are a degenerate Solana trader who combines viral news with proven pump.fun formats.
+
+TRENDING TOPIC: ${signal.topic}
+SUMMARY: ${signal.summary}
+KEYWORDS: ${(signal.keywords || []).join(', ')}
+
+SIMILAR TOKENS THAT PERFORMED WELL HISTORICALLY:
+${historicalBlock}
+
+Your goal: combine the viral energy of this trending topic with the proven pump.fun formats shown above. Take what worked before and inject it with today's news.
+${CRITICAL_RULES}`;
+
+  const concept = await callClaude(prompt);
+  return { ...concept, flux: '3', source_signal: signal.topic, source_similar: similar.slice(0, 5).map((t) => t.ticker).join(', ') };
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency helper
+// ---------------------------------------------------------------------------
+
+async function runWithConcurrency(tasks, limit) {
   const results = [];
-
-  for (let i = 0; i < signals.length; i += CONCURRENCY) {
-    const batch = signals.slice(i, i + CONCURRENCY);
-    const settled = await Promise.allSettled(batch.map(generateConcept));
-
+  for (let i = 0; i < tasks.length; i += limit) {
+    const batch = tasks.slice(i, i + limit);
+    const settled = await Promise.allSettled(batch.map((fn) => fn()));
     for (const outcome of settled) {
       if (outcome.status === 'fulfilled') {
         results.push(outcome.value);
       } else {
-        console.warn(`[conceptGenerator] Skipping signal: ${outcome.reason.message}`);
+        console.warn(`[conceptGenerator] Task failed: ${outcome.reason?.message}`);
       }
     }
-
-    if (i + CONCURRENCY < signals.length) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
   }
-
   return results;
 }
 
-export { generateConcept };
+// ---------------------------------------------------------------------------
+// MAIN EXPORT
+// ---------------------------------------------------------------------------
+
+async function generateConcepts(signals = [], migrations = []) {
+  const tasks = [];
+
+  // Flux 1: up to 3 signals
+  for (const signal of signals.slice(0, 3)) {
+    tasks.push(() => generateFromSignal(signal));
+  }
+
+  // Flux 2: up to 3 variants from migrations (one prompt per migration, max 3)
+  for (const migration of migrations.slice(0, 3)) {
+    tasks.push(() => generateVariants([migration]));
+  }
+
+  // Flux 3: up to 2 signals with DB matches
+  let flux3Count = 0;
+  for (const signal of signals) {
+    if (flux3Count >= 2) break;
+    const similar = searchSimilarTokens(signal.keywords || []);
+    if (similar && similar.length > 0) {
+      tasks.push(() => generateCrossover(signal));
+      flux3Count++;
+    }
+  }
+
+  const concepts = await runWithConcurrency(tasks, CONCURRENCY);
+
+  // Flatten (generateVariants returns a single object now, not an array)
+  const flat = concepts.flat();
+
+  // Save to DB
+  const now = new Date().toISOString();
+  for (const concept of flat) {
+    try {
+      insertConcept({
+        signal_id: null,
+        name: concept.name,
+        ticker: concept.ticker,
+        description: concept.description,
+        narrative: concept.narrative,
+        image_prompt: concept.image_prompt,
+        flux: concept.flux,
+        telegram_status: 'pending',
+        created_at: now,
+        feedback_notes: null,
+      });
+    } catch (err) {
+      console.warn(`[conceptGenerator] Failed to insert concept "${concept.name}": ${err.message}`);
+    }
+  }
+
+  console.log(`[conceptGenerator] Generated and saved ${flat.length} concepts`);
+  return flat;
+}
+
+export { generateFromSignal, generateVariants, generateCrossover };
 export default generateConcepts;

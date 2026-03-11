@@ -19,6 +19,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^5.2.1"
+    "better-sqlite3": "^12.6.2",
+    "express": "^5.2.1",
+    "ws": "^8.19.0"
   }
 }

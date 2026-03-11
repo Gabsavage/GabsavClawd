@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { minScore, setMinScore } from '../filter/scorer.js';
+import { updateConceptStatus } from '../database/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOT_TOPICS_PATH = path.join(__dirname, 'hotTopics.json');
@@ -15,10 +15,6 @@ let conceptCounter = 0;
 let awaitingModify = null;    // { chatId, conceptId } — set while waiting for Modify reply
 let pollOffset = 0;
 let polling = false;
-
-// Injected callbacks from index.js
-let runCycleCallback = null;
-let getStatsCallback = null;
 
 // ---------------------------------------------------------------------------
 // Telegram API helpers
@@ -45,15 +41,28 @@ function esc(text) {
     .replace(/>/g, '&gt;');
 }
 
+function fluxLabel(flux) {
+  switch (String(flux)) {
+    case '1': return '🌍 Flux 1 — World → Crypto';
+    case '2': return '🔄 Flux 2 — Crypto → Crypto';
+    case '3': return '⚡ Flux 3 — World → Crypto → Crypto';
+    default:  return `Flux ${flux}`;
+  }
+}
+
 function formatSource(concept) {
+  if (!concept.source_signal && !concept.subreddit) return null;
+  // Perplexity signals have source_signal but no subreddit
+  if (concept.source_signal) return null; // shown via topic field instead
   if (concept.subreddit === 'polymarket') return 'Polymarket';
   if (concept.subreddit === 'google_trends') return 'Google Trends';
   return `r/${concept.subreddit}`;
 }
 
 function formatDate(d) {
-  if (!d) return 'unknown';
+  if (!d) return null;
   const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return null;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -64,23 +73,34 @@ function formatDate(d) {
 function formatConcept(concept) {
   const lines = [
     `🚨 <b>New Meme Token Signal</b>`,
+    `<i>${esc(fluxLabel(concept.flux))}</i>`,
     ``,
-    `📰 <b>Signal</b>`,
-    `Title: ${esc(concept.title)}`,
-    `Source: ${esc(formatSource(concept))}`,
-    `Date: ${esc(formatDate(concept.created_at))}`,
   ];
-  if (concept.url) lines.push(`URL: ${esc(concept.url)}`);
+
+  // Signal block — only show if there's something useful
+  const source = formatSource(concept);
+  const date   = formatDate(concept.created_at);
+  const topic  = concept.topic || concept.source_signal || concept.title;
+
+  if (topic || source || date || concept.url) {
+    lines.push(`📰 <b>Signal</b>`);
+    if (topic)        lines.push(`Topic: ${esc(topic)}`);
+    if (source)       lines.push(`Source: ${esc(source)}`);
+    if (date)         lines.push(`Date: ${esc(date)}`);
+    if (concept.url)  lines.push(`URL: ${concept.url}`);
+    if (concept.source_migrations) {
+      lines.push(`Based on: ${esc(concept.source_migrations)}`);
+    }
+    lines.push(``);
+  }
+
   lines.push(
-    ``,
     `🪙 <b>Token Concept</b>`,
     `Name: <b>${esc(concept.name)}</b>  |  Ticker: <code>$${esc(concept.ticker)}</code>`,
     `Description: ${esc(concept.description)}`,
     `Narrative: <i>${esc(concept.narrative)}</i>`,
-    ``,
-    `📊 <b>Score:</b> ${concept.score}/100`,
-    `🧠 <b>Reasoning:</b> ${esc(concept.reasoning)}`,
   );
+
   return lines.join('\n');
 }
 
@@ -148,6 +168,9 @@ async function handleCallbackQuery(query) {
   switch (action) {
     case 'launch': {
       pendingLaunches.push({ ...concept, launchedAt: new Date().toISOString() });
+      if (concept.db_id) {
+        try { updateConceptStatus(concept.db_id, 'approved', 'launched via Telegram'); } catch {}
+      }
       await removeButtons(chatId, messageId);
       await tgPost('sendMessage', {
         chat_id: chatId,
@@ -168,6 +191,9 @@ async function handleCallbackQuery(query) {
     }
 
     case 'skip': {
+      if (concept.db_id) {
+        try { updateConceptStatus(concept.db_id, 'rejected', 'skipped via Telegram'); } catch {}
+      }
       concepts.delete(conceptId);
       await removeButtons(chatId, messageId);
       console.log(`[telegramBot] Skipped $${concept.ticker} — user rejected`);
@@ -180,11 +206,14 @@ async function handleCallbackQuery(query) {
     }
 
     case 'hot': {
+      if (concept.db_id) {
+        try { updateConceptStatus(concept.db_id, 'hot', 'marked hot via Telegram'); } catch {}
+      }
       await saveHotTopic(concept);
       await removeButtons(chatId, messageId);
       await tgPost('sendMessage', {
         chat_id: chatId,
-        text: `🔥 Angle saved as hot topic:\n<i>${esc(concept.angle)}</i>`,
+        text: `🔥 Angle saved as hot topic:\n<i>${esc(concept.topic || concept.title || concept.name)}</i>`,
         parse_mode: 'HTML',
       });
       break;
@@ -210,8 +239,6 @@ async function handleCommand(text, chatId) {
           '',
           '/status — last cycle stats',
           '/pending — list queued token launches',
-          '/forcecycle — trigger a scout cycle now',
-          '/threshold &lt;number&gt; — set min score (e.g. /threshold 65)',
           '/help — show this message',
         ].join('\n'),
       });
@@ -219,19 +246,13 @@ async function handleCommand(text, chatId) {
     }
 
     case '/status': {
-      const stats = getStatsCallback?.() ?? {};
       await tgPost('sendMessage', {
         chat_id: chatId,
         parse_mode: 'HTML',
         text: [
           '<b>Scout Status</b>',
           '',
-          `Last cycle: ${stats.lastCycleAt ? esc(stats.lastCycleAt) : 'not run yet'}`,
-          `Signals found: ${stats.totalSignals ?? 0}`,
-          `Passed filter: ${stats.passedFilter ?? 0}`,
-          `Concepts generated: ${stats.conceptsGenerated ?? 0}`,
           `Pending launches: ${pendingLaunches.length}`,
-          `Score threshold: ${minScore}`,
         ].join('\n'),
       });
       break;
@@ -243,43 +264,12 @@ async function handleCommand(text, chatId) {
         break;
       }
       const list = pendingLaunches
-        .map((c, i) => `${i + 1}. <b>${esc(c.name)}</b> <code>$${esc(c.ticker)}</code> — score ${c.score}`)
+        .map((c, i) => `${i + 1}. <b>${esc(c.name)}</b> <code>$${esc(c.ticker)}</code>`)
         .join('\n');
       await tgPost('sendMessage', {
         chat_id: chatId,
         parse_mode: 'HTML',
         text: `<b>Pending Launches (${pendingLaunches.length})</b>\n\n${list}`,
-      });
-      break;
-    }
-
-    case '/forcecycle': {
-      if (!runCycleCallback) {
-        await tgPost('sendMessage', { chat_id: chatId, text: '⚠️ Cycle runner not available.' });
-        break;
-      }
-      await tgPost('sendMessage', { chat_id: chatId, text: '🔄 Triggering scout cycle...' });
-      runCycleCallback().catch((err) =>
-        console.warn(`[telegramBot] Force cycle error: ${err.message}`)
-      );
-      break;
-    }
-
-    case '/threshold': {
-      const n = parseInt(parts[1], 10);
-      if (isNaN(n) || n < 0 || n > 100) {
-        await tgPost('sendMessage', {
-          chat_id: chatId,
-          parse_mode: 'HTML',
-          text: '⚠️ Usage: /threshold &lt;0–100&gt;',
-        });
-        break;
-      }
-      setMinScore(n);
-      await tgPost('sendMessage', {
-        chat_id: chatId,
-        parse_mode: 'HTML',
-        text: `✅ Score threshold updated to <b>${n}</b>`,
       });
       break;
     }
@@ -316,6 +306,10 @@ async function handleMessage(message) {
   concepts.set(conceptId, updated);
   pendingLaunches.push({ ...updated, launchedAt: new Date().toISOString() });
 
+  if (concept.db_id) {
+    try { updateConceptStatus(concept.db_id, 'approved', `modified: ${message.text}`); } catch {}
+  }
+
   await tgPost('sendMessage', {
     chat_id: message.chat.id,
     text: `✅ <b>$${esc(concept.ticker)}</b> updated and added to pending launches.\n\n<b>Modifications noted:</b> <i>${esc(message.text)}</i>`,
@@ -339,10 +333,9 @@ async function loadHotTopics() {
 async function saveHotTopic(concept) {
   const topics = await loadHotTopics();
   topics.push({
-    angle: concept.angle,
+    topic: concept.topic || concept.title || concept.name,
     ticker: concept.ticker,
-    title: concept.title,
-    subreddit: concept.subreddit,
+    flux: concept.flux,
     savedAt: new Date().toISOString(),
   });
   await writeFile(HOT_TOPICS_PATH, JSON.stringify(topics, null, 2));
@@ -383,9 +376,7 @@ async function poll() {
   }
 }
 
-function startBot({ runCycle, getStats } = {}) {
-  runCycleCallback = runCycle ?? null;
-  getStatsCallback = getStats ?? null;
+function startBot() {
   if (polling) return;
   polling = true;
   console.log('[telegramBot] Bot started — listening for updates');
