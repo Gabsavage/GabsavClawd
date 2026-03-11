@@ -41,7 +41,12 @@ db.exec(`
     why_it_pumps TEXT,
     sources TEXT,
     created_at TEXT,
-    used INTEGER DEFAULT 0
+    used INTEGER DEFAULT 0,
+    signal_strength INTEGER,
+    spread TEXT,
+    velocity TEXT,
+    shelf_life TEXT,
+    absurdity_angle TEXT
   );
 
   CREATE TABLE IF NOT EXISTS concepts (
@@ -90,7 +95,16 @@ db.exec(`
 }
 
 // Migrate: add new columns to signals if they don't exist yet
-for (const col of ['momentum TEXT', 'why_it_pumps TEXT', 'sources TEXT']) {
+for (const col of [
+  'momentum TEXT',
+  'why_it_pumps TEXT',
+  'sources TEXT',
+  'signal_strength INTEGER',
+  'spread TEXT',
+  'velocity TEXT',
+  'shelf_life TEXT',
+  'absurdity_angle TEXT',
+]) {
   try {
     db.exec(`ALTER TABLE signals ADD COLUMN ${col}`);
   } catch {
@@ -183,8 +197,12 @@ export function searchSimilarTokens(keywords) {
 
 export function insertSignal(signal) {
   const stmt = db.prepare(`
-    INSERT INTO signals (title, source, score, reasoning, momentum, why_it_pumps, sources, created_at, used)
-    VALUES (@title, @source, @score, @reasoning, @momentum, @why_it_pumps, @sources, @created_at, @used)
+    INSERT INTO signals
+      (title, source, score, reasoning, momentum, why_it_pumps, sources, created_at, used,
+       signal_strength, spread, velocity, shelf_life, absurdity_angle)
+    VALUES
+      (@title, @source, @score, @reasoning, @momentum, @why_it_pumps, @sources, @created_at, @used,
+       @signal_strength, @spread, @velocity, @shelf_life, @absurdity_angle)
   `);
   const result = stmt.run(signal);
   return result.lastInsertRowid;
