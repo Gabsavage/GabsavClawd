@@ -84,13 +84,33 @@ function formatConcept(concept) {
 
   if (topic || source || date || concept.url) {
     lines.push(`📰 <b>Signal</b>`);
-    if (topic)        lines.push(`Topic: ${esc(topic)}`);
-    if (source)       lines.push(`Source: ${esc(source)}`);
-    if (date)         lines.push(`Date: ${esc(date)}`);
-    if (concept.url)  lines.push(`URL: ${concept.url}`);
+    if (topic)           lines.push(`Topic: ${esc(topic)}`);
+    if (concept.summary) lines.push(`${esc(concept.summary)}`);
+    if (source)          lines.push(`Source: ${esc(source)}`);
+    if (date)            lines.push(`Date: ${esc(date)}`);
+    if (concept.url)     lines.push(`URL: ${concept.url}`);
     if (concept.source_migrations) {
       lines.push(`Based on: ${esc(concept.source_migrations)}`);
     }
+
+    // Signal metadata from Perplexity
+    const strength = concept.signal_strength;
+    const spread   = concept.spread;
+    const velocity = concept.velocity;
+    if (strength != null || spread || velocity) {
+      const parts = [];
+      if (strength != null) parts.push(`Signal: ${strength}/10`);
+      if (spread)           parts.push(`Spread: ${esc(spread)}`);
+      if (velocity)         parts.push(`Velocity: ${esc(velocity)}`);
+      lines.push(parts.join(' | '));
+    }
+    if (concept.shelf_life) {
+      lines.push(`Shelf life: ${esc(concept.shelf_life)}`);
+    }
+    if (concept.absurdity_angle && concept.absurdity_angle !== 'none') {
+      lines.push(`Angle: <i>${esc(concept.absurdity_angle)}</i>`);
+    }
+
     lines.push(``);
   }
 
