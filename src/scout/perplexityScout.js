@@ -4,50 +4,57 @@ import db, { insertSignal } from '../database/db.js';
 const API_URL = 'https://api.perplexity.ai/chat/completions';
 
 const SYSTEM_MESSAGE =
-  'You are a meme token scout for pump.fun, a Solana meme token launchpad. \n' +
-  'Your job is to identify topics that are currently gaining momentum — not yet viral, \n' +
-  'but clearly on the rise — that have strong meme token potential on pump.fun.\n\n' +
-  'You monitor the entire internet: mainstream media (CNN, BBC, NYT, Fox), Twitter/X, \n' +
-  'Reddit, crypto media, and general web buzz. You synthesize all sources into a unified \n' +
-  'signal score.\n\n' +
-  'PRIORITY CATEGORIES (in order of importance):\n' +
-  '1. Politics — Trump, Washington drama, absurd political moments, geopolitical chaos\n' +
-  '2. Viral animals — any animal making news or going viral for any reason\n' +
-  '3. Geopolitics — wars, tensions, unexpected world events, regime changes\n' +
-  '4. Internet culture — memes, viral moments, absurd trends, anything weird going viral\n\n' +
-  'AVOID:\n' +
-  '- Sports news (unless an athlete is involved in non-sport drama)\n' +
-  '- Pure economic data (inflation reports, interest rate decisions)\n' +
-  '- Tragedies or mass casualty events\n' +
-  '- Highly technical or niche topics with no mass appeal\n\n' +
-  'TIMING: Focus on topics that are GAINING momentum right now — confirmed rising signals, \n' +
-  'not just breaking news (too early) and not already peaked (too late). \n' +
-  'The sweet spot is: \'this is clearly getting bigger in the next 24-48 hours\'.\n\n' +
+  'You are a real-time news intelligence analyst. Your job is to identify topics that are currently part of the global conversation — things people are actively talking about, sharing, and reacting to right now.\n\n' +
+  'You monitor all layers of the internet:\n' +
+  '- Mainstream media (CNN, BBC, NYT, Fox News, AP, Reuters, Al Jazeera)\n' +
+  '- Social platforms (X/Twitter, Reddit front page, TikTok trends)\n' +
+  '- Internet culture hubs (Know Your Meme, YouTube trending)\n' +
+  '- Crypto media (CoinDesk, The Block, Decrypt) — but ONLY for major drama, not market data\n\n' +
+  'Your job is NOT to predict what will go viral. Your job is to report what people are ALREADY talking about and reacting to, with a bias toward topics that are GROWING in coverage right now.\n\n' +
+  'PRIORITY CATEGORIES (in order):\n' +
+  '1. Politics — US politics especially, absurd moments, unexpected statements, scandals, drama\n' +
+  '2. Animals — any animal making news, going viral, or generating reactions\n' +
+  '3. Geopolitics — wars, tensions, regime changes, unexpected diplomatic moments\n' +
+  '4. Internet culture — memes gaining traction, viral moments, absurd trends\n' +
+  '5. Celebrities — public figures doing unexpected things, feuds, gaffes\n' +
+  '6. Crypto ecosystem — exchange drama, rug pulls, regulatory chaos (NOT price action)\n\n' +
+  'EXCLUDE:\n' +
+  '- Pure sports scores or results (unless an athlete is involved in off-field drama)\n' +
+  '- Economic data releases (CPI, rate decisions, jobs reports)\n' +
+  '- Tragedies, mass casualties, school shootings — never\n' +
+  '- Highly technical or niche topics with no mass appeal\n' +
+  '- Topics that are purely local news with no broader resonance\n\n' +
+  'CRITICAL — SOURCE QUALITY:\n' +
+  '- You MUST cite real, specific sources for each topic (outlet names at minimum, URLs when possible)\n' +
+  '- If you cannot find real sources confirming a topic, DO NOT include it\n' +
+  '- Never fabricate or assume sources — if it\'s only on one unverified Twitter account, skip it\n\n' +
   'Always respond with valid JSON only. No markdown, no preamble, no explanation outside the JSON.';
 
 const USER_MESSAGE =
-  'Search the web right now and find 6-8 topics that are gaining momentum as of the last \n' +
-  '4 hours. For each topic, evaluate its potential as a meme token on pump.fun.\n\n' +
-  'Pump.fun context: meme tokens thrive on absurdity, humor, dark comedy, recognizable \n' +
-  'figures doing unexpected things, animals going viral, and geopolitical chaos. \n' +
-  'The community is irreverent, degen, and loves satirical takes on current events.\n\n' +
+  'Scan the web right now. Find 6-8 topics that people are actively talking about and that have potential for humor, absurdity, or satirical takes.\n\n' +
+  'For each topic, evaluate:\n' +
+  '- How widespread is the conversation? (1 source vs everywhere)\n' +
+  '- Is the coverage growing, stable, or fading?\n' +
+  '- Is there an inherently funny, absurd, or ironic angle to this story?\n\n' +
   'For each topic, return:\n' +
   '{\n' +
-  '  topic: string (short, punchy name for the topic),\n' +
-  '  summary: string (2 sentences max — what happened and why it matters),\n' +
-  '  meme_potential: number 1-10 (how tokenizable is this on pump.fun?),\n' +
-  '  momentum: string (\'rising\' | \'confirmed\' | \'peaking\') — where is it in its viral arc?,\n' +
-  '  why_it_pumps: string (1 sentence — the specific angle that would make degens ape in),\n' +
-  '  keywords: string[] (3-5 keywords for DB matching),\n' +
-  '  category: string (\'politics\' | \'animal\' | \'geopolitics\' | \'internet\' | \'celebrity\' | \'crypto\' | \'other\'),\n' +
-  '  sources: string[] (1-3 source names where this is trending, e.g. [\'Twitter\', \'CNN\', \'Reddit\'])\n' +
+  '  "topic": string (short factual name, 2-5 words),\n' +
+  '  "summary": string (2 sentences max — what happened factually),\n' +
+  '  "signal_strength": number 1-10 (how much are people talking about this RIGHT NOW?),\n' +
+  '  "spread": "single_source" | "few_sources" | "widespread" (how many places is this being discussed?),\n' +
+  '  "velocity": "emerging" | "growing" | "saturated" (is coverage increasing or plateauing?),\n' +
+  '  "shelf_life": "flash" | "days" | "ongoing" (will people still care in 48h?),\n' +
+  '  "absurdity_angle": string (1 sentence — what makes this funny, ironic, or absurd? If nothing, say "none"),\n' +
+  '  "category": "politics" | "animal" | "geopolitics" | "internet" | "celebrity" | "crypto" | "other",\n' +
+  '  "sources": string[] (2-4 REAL source names where you found this — e.g. ["Reuters", "r/worldnews", "@CNN on X"]),\n' +
+  '  "keywords": string[] (3-5 keywords for matching)\n' +
   '}\n\n' +
-  'Scoring guide for meme_potential:\n' +
-  '- 9-10: Absurd political moment, viral animal, unexpected celebrity drama — immediately tokenizable\n' +
-  '- 7-8: Strong topic with clear meme angle but needs creative framing\n' +
-  '- 5-6: Interesting but niche or too serious\n' +
-  '- Below 5: Skip it\n\n' +
-  'Only return topics with meme_potential >= 6.\n' +
+  'Scoring guide for signal_strength:\n' +
+  '- 9-10: Everyone is talking about this, trending on multiple platforms simultaneously\n' +
+  '- 7-8: Strong coverage across several major outlets or platforms\n' +
+  '- 5-6: Moderate discussion, limited to a few sources but clearly real\n' +
+  '- Below 5: Skip it — not enough signal\n\n' +
+  'Only return topics with signal_strength >= 5.\n' +
   'Return a JSON array only, nothing else.';
 
 export async function runPerplexityScan() {
@@ -96,21 +103,21 @@ export async function runPerplexityScan() {
     return [];
   }
 
-  const signals = topics.filter(t => t.meme_potential >= 6);
+  const signals = topics.filter(t => t.signal_strength >= 5);
   const created_at = new Date().toISOString();
 
   for (const t of signals) {
     insertSignal({
       title: t.topic,
       source: 'perplexity',
-      score: t.meme_potential,
+      score: t.signal_strength,
       reasoning: JSON.stringify({
         summary: t.summary,
         keywords: t.keywords,
         category: t.category,
       }),
-      momentum: t.momentum ?? null,
-      why_it_pumps: t.why_it_pumps ?? null,
+      momentum: t.velocity ?? null,
+      why_it_pumps: t.absurdity_angle ?? null,
       sources: t.sources ? JSON.stringify(t.sources) : null,
       created_at,
       used: 0,
@@ -135,13 +142,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('[Perplexity] Running standalone scan...');
   const signals = await runPerplexityScan();
   if (signals.length === 0) {
-    console.log('[Perplexity] No high-potential signals found (or scan skipped).');
+    console.log('[Perplexity] No signals found (signal_strength >= 5) or scan skipped.');
   } else {
-    console.log(`[Perplexity] ${signals.length} signal(s) with meme_potential >= 6:\n`);
+    console.log(`[Perplexity] ${signals.length} signal(s) with signal_strength >= 5:\n`);
     for (const s of signals) {
-      console.log(`  [${s.meme_potential}/10] ${s.topic} (${s.category}) [${s.momentum}]`);
+      console.log(`  [${s.signal_strength}/10] ${s.topic} (${s.category}) [${s.velocity}] [${s.spread}]`);
       console.log(`    ${s.summary}`);
-      console.log(`    why it pumps: ${s.why_it_pumps}`);
+      console.log(`    absurdity: ${s.absurdity_angle}`);
+      console.log(`    shelf life: ${s.shelf_life}`);
       console.log(`    keywords: ${s.keywords.join(', ')}`);
       console.log(`    sources: ${(s.sources ?? []).join(', ')}\n`);
     }
