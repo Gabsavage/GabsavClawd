@@ -16,7 +16,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
-    ticker TEXT UNIQUE,
+    ticker TEXT,
     description TEXT,
     created_at TEXT,
     migrated_at TEXT,
@@ -27,7 +27,8 @@ db.exec(`
     keywords TEXT,
     migrated INTEGER DEFAULT 0,
     source TEXT,
-    raw_data TEXT
+    raw_data TEXT,
+    UNIQUE(name, ticker)
   );
 
   CREATE TABLE IF NOT EXISTS signals (
@@ -36,6 +37,9 @@ db.exec(`
     source TEXT,
     score REAL,
     reasoning TEXT,
+    momentum TEXT,
+    why_it_pumps TEXT,
+    sources TEXT,
     created_at TEXT,
     used INTEGER DEFAULT 0
   );
@@ -54,6 +58,45 @@ db.exec(`
     feedback_notes TEXT
   );
 `);
+
+// Migrate: rebuild tokens table if still using old ticker UNIQUE constraint
+{
+  const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='tokens'`).get();
+  if (info && /ticker TEXT UNIQUE/i.test(info.sql)) {
+    db.exec(`
+      ALTER TABLE tokens RENAME TO tokens_old;
+      CREATE TABLE tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        ticker TEXT,
+        description TEXT,
+        created_at TEXT,
+        migrated_at TEXT,
+        volume_sol REAL DEFAULT 0,
+        trade_count INTEGER DEFAULT 0,
+        theme TEXT,
+        format TEXT,
+        keywords TEXT,
+        migrated INTEGER DEFAULT 0,
+        source TEXT,
+        raw_data TEXT,
+        UNIQUE(name, ticker)
+      );
+      INSERT OR IGNORE INTO tokens SELECT * FROM tokens_old;
+      DROP TABLE tokens_old;
+    `);
+    console.log('[DB] Migrated tokens table: ticker UNIQUE → UNIQUE(name, ticker)');
+  }
+}
+
+// Migrate: add new columns to signals if they don't exist yet
+for (const col of ['momentum TEXT', 'why_it_pumps TEXT', 'sources TEXT']) {
+  try {
+    db.exec(`ALTER TABLE signals ADD COLUMN ${col}`);
+  } catch {
+    // column already exists — ignore
+  }
+}
 
 // --- Tokens ---
 
@@ -140,8 +183,8 @@ export function searchSimilarTokens(keywords) {
 
 export function insertSignal(signal) {
   const stmt = db.prepare(`
-    INSERT INTO signals (title, source, score, reasoning, created_at, used)
-    VALUES (@title, @source, @score, @reasoning, @created_at, @used)
+    INSERT INTO signals (title, source, score, reasoning, momentum, why_it_pumps, sources, created_at, used)
+    VALUES (@title, @source, @score, @reasoning, @momentum, @why_it_pumps, @sources, @created_at, @used)
   `);
   const result = stmt.run(signal);
   return result.lastInsertRowid;

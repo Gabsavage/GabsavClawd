@@ -7,7 +7,15 @@
       "Bash(taskkill:*)",
       "Bash(cmd.exe:*)",
       "Bash(powershell.exe:*)",
-      "Bash(npm start:*)"
+      "Bash(npm start:*)",
+      "Bash(npm install:*)",
+      "Bash(node --env-file=.env src/scout/perplexityScout.js 2>&1)",
+      "Bash(node --env-file=.env src/context/fetchHistoricalTokens.js 2>&1)",
+      "Bash(DUNE_QUERY_ID=6771116 node --env-file=.env src/context/fetchHistoricalTokens.js 2>&1)",
+      "Bash(node --env-file=.env src/context/importHistoricalTokens.js 2>&1)",
+      "Bash(node -e \"\nimport\\('better-sqlite3'\\).then\\(\\({default: Database}\\) => {\n  const db = new Database\\('src/database/data/pumpfun.db'\\);\n  const count = db.prepare\\('SELECT COUNT\\(*\\) as c FROM tokens'\\).get\\(\\);\n  const sample = db.prepare\\('SELECT name, ticker, source FROM tokens LIMIT 5'\\).all\\(\\);\n  console.log\\('Total tokens:', count.c\\);\n  console.log\\('Sample:', JSON.stringify\\(sample, null, 2\\)\\);\n  db.close\\(\\);\n}\\);\n\" 2>&1)",
+      "Bash(node --env-file=.env src/context/importHistoricalTokens.js 2>&1 | head -30 && echo \"...\" && node --env-file=.env src/context/importHistoricalTokens.js 2>&1 | tail -20)",
+      "Bash(git add:*)"
     ]
   }
 }

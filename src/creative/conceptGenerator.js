@@ -83,9 +83,24 @@ async function callClaude(prompt) {
 async function generateFromSignal(signal) {
   const themes = getTopThemes(5);
   const formats = getTopFormats(5);
+  const similar = searchSimilarTokens(signal.keywords || []);
+  const proven  = similar.filter(t => (t.volume_sol ?? 0) > 500);
 
-  const themesBlock = themes.map((t) => `  - ${t.theme} (${t.count} tokens)`).join('\n');
+  const themesBlock  = themes.map((t) => `  - ${t.theme} (${t.count} tokens)`).join('\n');
   const formatsBlock = formats.map((f) => `  - ${f.format} (${f.count} tokens)`).join('\n');
+
+  let historicalSection = '';
+  if (proven.length > 0) {
+    const provenBlock = proven
+      .slice(0, 3)
+      .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0)} SOL volume`)
+      .join('\n');
+    historicalSection = `
+HISTORICAL WINNERS on this theme (high volume = proven market appetite):
+${provenBlock}
+
+The market has already shown appetite for this theme. Generate a fresh variant or sequel that builds on this proven format.`;
+  }
 
   const prompt = `You are a degenerate Solana trader who invents meme coins. A viral news topic just broke — be FIRST to tokenize it before anyone else.
 
@@ -100,12 +115,17 @@ ${themesBlock}
 
 TOP PERFORMING FORMATS on pump.fun right now:
 ${formatsBlock}
-
-Your goal: create a token concept that hasn't been done yet. This topic is fresh — own it.
+${historicalSection}
+Your goal: create a token concept that captures this moment. Fresh angle, degen energy.
 ${CRITICAL_RULES}`;
 
   const concept = await callClaude(prompt);
-  return { ...concept, flux: '1', source_signal: signal.topic };
+  return {
+    ...concept,
+    flux: '1',
+    source_signal: signal.topic,
+    ...(proven.length > 0 && { source_similar: proven.slice(0, 3).map(t => t.ticker).join(', ') }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -144,25 +164,28 @@ async function generateCrossover(signal) {
     return { ...concept, flux: '3' };
   }
 
-  const historicalBlock = similar
-    .slice(0, 5)
+  const top3 = similar.slice(0, 3);
+
+  const historicalBlock = top3
     .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0) || 0} SOL volume | theme: ${t.theme || 'unknown'}`)
     .join('\n');
 
   const prompt = `You are a degenerate Solana trader who combines viral news with proven pump.fun formats.
 
+Pump.fun degens have short memory and love recycled themes. A topic that pumped 3 months ago can pump again with a fresh angle. Use historical winners as inspiration, not as things to avoid.
+
 TRENDING TOPIC: ${signal.topic}
 SUMMARY: ${signal.summary}
 KEYWORDS: ${(signal.keywords || []).join(', ')}
 
-SIMILAR TOKENS THAT PERFORMED WELL HISTORICALLY:
+HISTORICAL WINNERS on this theme — use these as inspiration:
 ${historicalBlock}
 
-Your goal: combine the viral energy of this trending topic with the proven pump.fun formats shown above. Take what worked before and inject it with today's news.
+Your goal: combine the viral energy of this trending topic with the proven pump.fun formats shown above. These historical tokens prove the market loves this theme — now give degens a fresh reason to ape in again.
 ${CRITICAL_RULES}`;
 
   const concept = await callClaude(prompt);
-  return { ...concept, flux: '3', source_signal: signal.topic, source_similar: similar.slice(0, 5).map((t) => t.ticker).join(', ') };
+  return { ...concept, flux: '3', source_signal: signal.topic, source_similar: top3.map((t) => t.ticker).join(', ') };
 }
 
 // ---------------------------------------------------------------------------
@@ -202,12 +225,13 @@ async function generateConcepts(signals = [], migrations = []) {
     tasks.push(() => generateVariants([migration]));
   }
 
-  // Flux 3: up to 2 signals with DB matches
+  // Flux 3: up to 2 signals that have high-volume historical matches (proven theme appetite)
   let flux3Count = 0;
   for (const signal of signals) {
     if (flux3Count >= 2) break;
     const similar = searchSimilarTokens(signal.keywords || []);
-    if (similar && similar.length > 0) {
+    const hasProven = similar && similar.some(t => (t.volume_sol ?? 0) > 500);
+    if (hasProven) {
       tasks.push(() => generateCrossover(signal));
       flux3Count++;
     }
