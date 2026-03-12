@@ -6,33 +6,43 @@ const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CONCURRENCY = 3;
 
 // ---------------------------------------------------------------------------
-// Shared rules appended to every prompt
+// System prompt (shared across all fluxes)
 // ---------------------------------------------------------------------------
 
-const CRITICAL_RULES = `
-CRITICAL RULES FOR TOKEN CONCEPTS:
-- Name: short, punchy, FUNNY — maximum 4 words, ideally 1-2
-- Ticker: 3-5 chars, degen energy, never generic words (no VOTE, STRIKE, REGIME, PUMP, COIN)
-- Tone: absurdist, dark humor, internet culture — never serious or corporate
-- GOOD examples: $PUNCH, $RICO, $JUDY, $KHAMESTONKS, $MOSSAD, $BRON, $NUKE
-- BAD examples: 'The Strike Protocol $STRIKE', 'The Fed Chair Pump $FDRUMP', 'The Supreme Departure $SUPREME'
-- Think: what would a Solana degen actually ape into at 2am?
+const SYSTEM_PROMPT = `You are a Solana meme token namer. You receive a trending news topic and a list of historically successful pump.fun tokens. Your job: create a token concept that a degen scrolling pump.fun at 2am would instantly understand and ape into.
 
-Return JSON only:
-{
-  "name": string,
-  "ticker": string,
-  "description": string (max 2 sentences, punchy),
-  "narrative": string (max 2 sentences, why it will pump),
-  "image_prompt": string (visual description for image generation),
-  "flux": "1" | "2" | "3"
-}`;
+PROCESS:
+1. Read the trending topic and understand the core story
+2. Study the similar successful tokens provided — notice their naming patterns, humor style, and what made them work
+3. Combine: take a PROVEN format/style from the similar tokens and inject TODAY'S news into it
+4. The result should feel like it belongs on pump.fun — not like a news headline, not like a corporate product
+
+NAMING RULES:
+- Name: 1-2 words ideal, 3 max, NEVER more than 4 words
+- The name must be INSTANTLY understandable — if someone needs more than 1 second to get the reference, it's too clever
+- Ticker: 3-5 characters, must feel like something you'd see trending on DEXScreener
+- GOOD tickers: $PUNCH, $RICO, $JUDY, $NUKE, $BRON, $MOSSAD
+- BAD tickers: $STRIKE, $REGIME, $SUPREME, $PUMP, $COIN, $TOKEN — these are generic and boring
+- The ticker should make someone smirk when they read it
+
+TONE RULES:
+- Absurdist, dark humor, internet-native — like a drunk tweet that's actually funny
+- NEVER serious, corporate, explanatory, or "professional"
+- NEVER use "The" at the start of a name
+- NEVER use compound words that sound like a DeFi protocol (no "StrikeDAO", "FedPump", "NukeSwap")
+- Description: 1 sentence max, sounds like a shitpost not a whitepaper
+- Narrative: 1 sentence max, why a degen would buy this (FOMO angle, humor angle, or both)
+
+IMAGE RULES:
+- image_prompt: describe a visual that would work as a pump.fun token thumbnail
+- Style: meme-worthy, bold, instantly readable at small size
+- Think: what would look good as a 200x200 circle on DEXScreener?`;
 
 // ---------------------------------------------------------------------------
 // Claude API call with retry on 529
 // ---------------------------------------------------------------------------
 
-async function callClaude(prompt) {
+async function callClaude(userPrompt) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY environment variable is not set');
 
@@ -51,7 +61,8 @@ async function callClaude(prompt) {
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
       }),
     });
 
@@ -86,38 +97,42 @@ async function generateFromSignal(signal) {
   const similar = searchSimilarTokens(signal.keywords || []);
   const proven  = similar.filter(t => (t.volume_sol ?? 0) > 500);
 
-  const themesBlock  = themes.map((t) => `  - ${t.theme} (${t.count} tokens)`).join('\n');
-  const formatsBlock = formats.map((f) => `  - ${f.format} (${f.count} tokens)`).join('\n');
+  const topThemes  = themes.map((t) => t.theme);
+  const topFormats = formats.map((f) => f.format);
 
-  let historicalSection = '';
-  if (proven.length > 0) {
-    const provenBlock = proven
-      .slice(0, 3)
-      .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0)} SOL volume`)
-      .join('\n');
-    historicalSection = `
-HISTORICAL WINNERS on this theme (high volume = proven market appetite):
-${provenBlock}
+  const similarTokensBlock = proven.length > 0
+    ? proven
+        .slice(0, 3)
+        .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0)} SOL volume | theme: ${t.theme || 'unknown'}`)
+        .join('\n')
+    : similar
+        .slice(0, 3)
+        .map((t) => `  - "${t.name}" ($${t.ticker}) | theme: ${t.theme || 'unknown'}`)
+        .join('\n');
 
-The market has already shown appetite for this theme. Generate a fresh variant or sequel that builds on this proven format.`;
-  }
-
-  const prompt = `You are a degenerate Solana trader who invents meme coins. A viral news topic just broke — be FIRST to tokenize it before anyone else.
-
-TRENDING TOPIC: ${signal.topic}
-SUMMARY: ${signal.summary}
-MEME POTENTIAL: ${signal.meme_potential}/10
+  const prompt = `TRENDING TOPIC: ${signal.topic}
+WHAT'S HAPPENING: ${signal.summary}
+ABSURDITY ANGLE: ${signal.absurdity_angle ?? 'none'}
+HOW BIG: ${signal.spread ?? 'unknown'} coverage, ${signal.velocity ?? 'unknown'} velocity
 KEYWORDS: ${(signal.keywords || []).join(', ')}
-CATEGORY: ${signal.category}
 
-TOP PERFORMING THEMES on pump.fun right now:
-${themesBlock}
+SIMILAR TOKENS THAT PERFORMED WELL ON PUMP.FUN:
+${similarTokensBlock || '  (none found)'}
 
-TOP PERFORMING FORMATS on pump.fun right now:
-${formatsBlock}
-${historicalSection}
-Your goal: create a token concept that captures this moment. Fresh angle, degen energy.
-${CRITICAL_RULES}`;
+TOP PERFORMING THEMES RIGHT NOW: ${topThemes.join(', ')}
+TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}
+
+Using the successful tokens above as style inspiration, create a token concept for this trending topic.
+
+Return JSON only:
+{
+  "name": string,
+  "ticker": string,
+  "description": string (1 sentence, shitpost energy),
+  "narrative": string (1 sentence, why degens buy this),
+  "image_prompt": string (visual for pump.fun thumbnail),
+  "flux": "1"
+}`;
 
   const concept = await callClaude(prompt);
   return {
@@ -139,13 +154,22 @@ async function generateVariants(migrations) {
     .map((t) => `  - "${t.name}" ($${t.ticker}) | theme: ${t.theme || 'unknown'} | format: ${t.format || 'unknown'}`)
     .join('\n');
 
-  const prompt = `You are a degenerate Solana trader studying what just pumped and migrated. These tokens just successfully migrated on pump.fun — they are proven winners:
+  const prompt = `These tokens just successfully migrated on pump.fun — they are proven winners:
 
 RECENTLY MIGRATED TOKENS:
 ${migrationList}
 
 Your goal: create a fresh variant or remix of the energy that made these pump. Don't copy — evolve. Find the pattern and push it further or flip it sideways.
-${CRITICAL_RULES}`;
+
+Return JSON only:
+{
+  "name": string,
+  "ticker": string,
+  "description": string (1 sentence, shitpost energy),
+  "narrative": string (1 sentence, why degens buy this),
+  "image_prompt": string (visual for pump.fun thumbnail),
+  "flux": "2"
+}`;
 
   const concept = await callClaude(prompt);
   return { ...concept, flux: '2', source_migrations: migrations.map((t) => t.ticker).join(', ') };
@@ -170,19 +194,27 @@ async function generateCrossover(signal) {
     .map((t) => `  - "${t.name}" ($${t.ticker}) | ${t.volume_sol?.toFixed(0) || 0} SOL volume | theme: ${t.theme || 'unknown'}`)
     .join('\n');
 
-  const prompt = `You are a degenerate Solana trader who combines viral news with proven pump.fun formats.
-
-Pump.fun degens have short memory and love recycled themes. A topic that pumped 3 months ago can pump again with a fresh angle. Use historical winners as inspiration, not as things to avoid.
+  const prompt = `Pump.fun degens have short memory and love recycled themes. A topic that pumped 3 months ago can pump again with a fresh angle. Use historical winners as inspiration, not as things to avoid.
 
 TRENDING TOPIC: ${signal.topic}
-SUMMARY: ${signal.summary}
+WHAT'S HAPPENING: ${signal.summary}
+ABSURDITY ANGLE: ${signal.absurdity_angle ?? 'none'}
 KEYWORDS: ${(signal.keywords || []).join(', ')}
 
-HISTORICAL WINNERS on this theme — use these as inspiration:
+HISTORICAL WINNERS on this theme — use these as style inspiration:
 ${historicalBlock}
 
-Your goal: combine the viral energy of this trending topic with the proven pump.fun formats shown above. These historical tokens prove the market loves this theme — now give degens a fresh reason to ape in again.
-${CRITICAL_RULES}`;
+Combine the viral energy of this trending topic with the proven pump.fun formats shown above. These historical tokens prove the market loves this theme — now give degens a fresh reason to ape in again.
+
+Return JSON only:
+{
+  "name": string,
+  "ticker": string,
+  "description": string (1 sentence, shitpost energy),
+  "narrative": string (1 sentence, why degens buy this),
+  "image_prompt": string (visual for pump.fun thumbnail),
+  "flux": "3"
+}`;
 
   const concept = await callClaude(prompt);
   return { ...concept, flux: '3', source_signal: signal.topic, source_similar: top3.map((t) => t.ticker).join(', ') };
