@@ -94,6 +94,11 @@ db.exec(`
   }
 }
 
+// Migrate: add columns to concepts if they don't exist yet
+for (const col of ['sources TEXT', 'source_date TEXT', 'source_signal TEXT']) {
+  try { db.exec(`ALTER TABLE concepts ADD COLUMN ${col}`); } catch {}
+}
+
 // Migrate: add new columns to signals if they don't exist yet
 for (const col of [
   'momentum TEXT',
@@ -104,6 +109,7 @@ for (const col of [
   'velocity TEXT',
   'shelf_life TEXT',
   'absurdity_angle TEXT',
+  'source_date TEXT',
 ]) {
   try {
     db.exec(`ALTER TABLE signals ADD COLUMN ${col}`);
@@ -136,11 +142,11 @@ export function updateTokenVolume(ticker, volume_sol, trade_count) {
 
 export function getTopThemes(limit = 10) {
   const stmt = db.prepare(`
-    SELECT theme, COUNT(*) as count
+    SELECT theme, COUNT(*) as count, SUM(volume_sol) as total_volume
     FROM tokens
     WHERE theme IS NOT NULL
     GROUP BY theme
-    ORDER BY count DESC
+    ORDER BY total_volume DESC
     LIMIT ?
   `);
   return stmt.all(limit);
@@ -148,11 +154,11 @@ export function getTopThemes(limit = 10) {
 
 export function getTopFormats(limit = 10) {
   const stmt = db.prepare(`
-    SELECT format, COUNT(*) as count
+    SELECT format, COUNT(*) as count, SUM(volume_sol) as total_volume
     FROM tokens
     WHERE format IS NOT NULL
     GROUP BY format
-    ORDER BY count DESC
+    ORDER BY total_volume DESC
     LIMIT ?
   `);
   return stmt.all(limit);
@@ -193,16 +199,24 @@ export function searchSimilarTokens(keywords) {
   return stmt.all(...params);
 }
 
+export function hasRecentConcept(topic) {
+  const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const row = db
+    .prepare(`SELECT 1 FROM concepts WHERE source_signal = ? AND created_at >= ? LIMIT 1`)
+    .get(topic, since);
+  return !!row;
+}
+
 // --- Signals ---
 
 export function insertSignal(signal) {
   const stmt = db.prepare(`
     INSERT INTO signals
       (title, source, score, reasoning, momentum, why_it_pumps, sources, created_at, used,
-       signal_strength, spread, velocity, shelf_life, absurdity_angle)
+       signal_strength, spread, velocity, shelf_life, absurdity_angle, source_date)
     VALUES
       (@title, @source, @score, @reasoning, @momentum, @why_it_pumps, @sources, @created_at, @used,
-       @signal_strength, @spread, @velocity, @shelf_life, @absurdity_angle)
+       @signal_strength, @spread, @velocity, @shelf_life, @absurdity_angle, @source_date)
   `);
   const result = stmt.run(signal);
   return result.lastInsertRowid;
@@ -214,10 +228,10 @@ export function insertConcept(concept) {
   const stmt = db.prepare(`
     INSERT INTO concepts
       (signal_id, name, ticker, description, narrative, image_prompt,
-       flux, telegram_status, created_at, feedback_notes)
+       flux, telegram_status, created_at, feedback_notes, sources, source_date, source_signal)
     VALUES
       (@signal_id, @name, @ticker, @description, @narrative, @image_prompt,
-       @flux, @telegram_status, @created_at, @feedback_notes)
+       @flux, @telegram_status, @created_at, @feedback_notes, @sources, @source_date, @source_signal)
   `);
   const result = stmt.run(concept);
   return result.lastInsertRowid;

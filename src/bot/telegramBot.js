@@ -110,6 +110,9 @@ function formatConcept(concept) {
     if (concept.absurdity_angle && concept.absurdity_angle !== 'none') {
       lines.push(`Angle: <i>${esc(concept.absurdity_angle)}</i>`);
     }
+    const sourcesArr = Array.isArray(concept.sources) ? concept.sources : [];
+    lines.push(`Sources: ${sourcesArr.length > 0 ? sourcesArr.map(esc).join(', ') : 'N/A'}`);
+    if (concept.source_date) lines.push(`Date: ${esc(concept.source_date)}`);
 
     lines.push(``);
   }
