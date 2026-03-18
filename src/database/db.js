@@ -263,4 +263,50 @@ export function getApprovedConcepts(limit = 20) {
   return stmt.all(limit);
 }
 
+// --- Dashboard queries ---
+
+export function getRecentSignals(limit = 50) {
+  return db.prepare(`SELECT * FROM signals ORDER BY created_at DESC LIMIT ?`).all(limit);
+}
+
+export function getConceptsByStatus(status, limit = 50) {
+  if (status === 'all') {
+    return db.prepare(`SELECT * FROM concepts ORDER BY created_at DESC LIMIT ?`).all(limit);
+  }
+  return db
+    .prepare(`SELECT * FROM concepts WHERE telegram_status = ? ORDER BY created_at DESC LIMIT ?`)
+    .all(status, limit);
+}
+
+export function getDashboardStats() {
+  const total    = db.prepare(`SELECT COUNT(*) as n FROM concepts`).get();
+  const approved = db.prepare(`SELECT COUNT(*) as n FROM concepts WHERE telegram_status = 'approved'`).get();
+  const hot      = db.prepare(`SELECT COUNT(*) as n FROM concepts WHERE telegram_status = 'hot'`).get();
+  const rejected = db.prepare(`SELECT COUNT(*) as n FROM concepts WHERE telegram_status = 'rejected'`).get();
+  const signals  = db.prepare(`SELECT COUNT(*) as n FROM signals`).get();
+  const migs     = db.prepare(`SELECT COUNT(*) as n FROM tokens WHERE migrated = 1`).get();
+  const todayC   = db.prepare(`SELECT COUNT(*) as n FROM concepts WHERE date(created_at) = date('now')`).get();
+  const todayS   = db.prepare(`SELECT COUNT(*) as n FROM signals WHERE date(created_at) = date('now')`).get();
+
+  const t = total.n;
+  return {
+    totalConcepts: t,
+    approved: approved.n,
+    hot: hot.n,
+    rejected: rejected.n,
+    pending: Math.max(0, t - approved.n - hot.n - rejected.n),
+    totalSignals: signals.n,
+    migrations: migs.n,
+    todayConcepts: todayC.n,
+    todaySignals: todayS.n,
+    approvalRate: t > 0 ? Math.round(((approved.n + hot.n) / t) * 100) : 0,
+  };
+}
+
+export function getAllTokens(limit = 100, offset = 0) {
+  return db
+    .prepare(`SELECT * FROM tokens ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(limit, offset);
+}
+
 export default db;

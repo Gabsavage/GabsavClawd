@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { updateConceptStatus } from '../database/db.js';
+import { syncPendingLaunches } from '../dashboard/state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOT_TOPICS_PATH = path.join(__dirname, 'hotTopics.json');
@@ -190,6 +191,7 @@ async function handleCallbackQuery(query) {
   switch (action) {
     case 'launch': {
       pendingLaunches.push({ ...concept, launchedAt: new Date().toISOString() });
+      syncPendingLaunches(pendingLaunches);
       if (concept.db_id) {
         try { updateConceptStatus(concept.db_id, 'approved', 'launched via Telegram'); } catch {}
       }
@@ -327,6 +329,7 @@ async function handleMessage(message) {
   };
   concepts.set(conceptId, updated);
   pendingLaunches.push({ ...updated, launchedAt: new Date().toISOString() });
+  syncPendingLaunches(pendingLaunches);
 
   if (concept.db_id) {
     try { updateConceptStatus(concept.db_id, 'approved', `modified: ${message.text}`); } catch {}

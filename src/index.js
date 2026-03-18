@@ -7,6 +7,8 @@ import { runPerplexityScan, getLatestSignals } from './scout/perplexityScout.js'
 import { scanCryptoTwitter } from './scout/grokScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { startBot, sendConcept, stopBot, getPendingLaunches } from './bot/telegramBot.js';
+import { pushCycleEntry, signalCycleStart, emitNewConcept, triggers } from './dashboard/state.js';
+import { startDashboard } from './dashboard/server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -68,11 +70,8 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 // ---------------------------------------------------------------------------
-// Cycle log — max 20 entries, newest first
+// Cycle log — managed by dashboard/state.js
 // ---------------------------------------------------------------------------
-
-const MAX_LOG = 20;
-const cycleLog = [];
 
 function logEntry(type) {
   return {
@@ -91,8 +90,7 @@ function finishEntry(entry, extra = {}) {
   entry.duration = Math.round((Date.now() - new Date(entry.startedAt).getTime()) / 1000);
   entry.status = 'done';
   Object.assign(entry, extra);
-  cycleLog.unshift(entry);
-  if (cycleLog.length > MAX_LOG) cycleLog.length = MAX_LOG;
+  pushCycleEntry(entry);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +102,7 @@ async function broadcastConcepts(concepts) {
   for (const concept of concepts) {
     try {
       await sendConcept(concept);
+      emitNewConcept({ ...concept, sent_at: new Date().toISOString() });
       console.log(`[bot] Sent: $${concept.ticker} — "${concept.name}" (Flux ${concept.flux})`);
       sent++;
     } catch (err) {
@@ -121,6 +120,7 @@ const PERPLEXITY_INTERVAL_MS = 30 * 60 * 1000;
 
 async function runPerplexityCycle() {
   const entry = logEntry('perplexity');
+  signalCycleStart('perplexity');
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`[perplexity] Cycle starting at ${entry.startedAt}`);
 
@@ -155,6 +155,7 @@ const FLUX2_OFFSET_MS   = 15 * 60 * 1000;
 
 async function runFlux2Cycle() {
   const entry = logEntry('flux2');
+  signalCycleStart('flux2');
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`[flux2] Cycle starting at ${entry.startedAt}`);
 
@@ -193,6 +194,7 @@ const FLUX3_OFFSET_MS   = 20 * 60 * 1000;
 
 async function runFlux3Cycle() {
   const entry = logEntry('flux3');
+  signalCycleStart('flux3');
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`[flux3] CT trend scan starting at ${entry.startedAt}`);
 
@@ -233,6 +235,14 @@ async function main() {
 
   startBot();
   startWebSocket();
+
+  // Register dashboard cycle triggers
+  triggers.perplexity = runPerplexityCycle;
+  triggers.flux2 = runFlux2Cycle;
+  triggers.flux3 = runFlux3Cycle;
+
+  // Start dashboard server (same process, shared state)
+  startDashboard();
 
   // Run first Perplexity cycle immediately
   await runPerplexityCycle();

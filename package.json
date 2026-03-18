@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node --env-file=.env src/index.js",
     "dev": "node --env-file=.env --watch src/index.js",
-    "dashboard": "node src/dashboard/server.js"
+    "dashboard": "node --env-file=.env src/dashboard/server.js",
+    "dashboard:ui": "cd dashboard-ui && npm run dev",
+    "dashboard:build": "cd dashboard-ui && npm run build"
   },
   "keywords": [
     "meme",
