@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 
 import { startWebSocket, getRecentTokens, getRecentMigrations } from './scout/webSocketScout.js';
 import { runPerplexityScan, getLatestSignals } from './scout/perplexityScout.js';
+import { scanCryptoTwitter } from './scout/grokScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { startBot, sendConcept, stopBot, getPendingLaunches } from './bot/telegramBot.js';
 
@@ -184,6 +185,44 @@ async function runFlux2Cycle() {
 }
 
 // ---------------------------------------------------------------------------
+// FLUX 3 CYCLE — runs every 45 minutes, offset 20 minutes after start
+// ---------------------------------------------------------------------------
+
+const FLUX3_INTERVAL_MS = 45 * 60 * 1000;
+const FLUX3_OFFSET_MS   = 20 * 60 * 1000;
+
+async function runFlux3Cycle() {
+  const entry = logEntry('flux3');
+  console.log(`\n${'─'.repeat(50)}`);
+  console.log(`[flux3] CT trend scan starting at ${entry.startedAt}`);
+
+  try {
+    const trends = await scanCryptoTwitter();
+    entry.signalCount = trends.length;
+
+    if (trends.length === 0) {
+      console.log('[flux3] No CT trends found — skipping');
+      finishEntry(entry, { conceptCount: 0 });
+      return;
+    }
+
+    console.log(`[flux3] ${trends.length} CT trend(s) found`);
+    const concepts = await generateConcepts([], [], trends);
+    entry.conceptCount = concepts.length;
+    console.log(`[flux3] ${concepts.length} concept(s) generated`);
+
+    const sent = await broadcastConcepts(concepts);
+    console.log(`[flux3] ${sent}/${concepts.length} concept(s) sent to Telegram`);
+
+    finishEntry(entry, { conceptCount: concepts.length });
+  } catch (err) {
+    entry.status = 'error';
+    finishEntry(entry);
+    console.error(`[flux3] Cycle error: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -217,8 +256,21 @@ async function main() {
     }, FLUX2_INTERVAL_MS);
   }, FLUX2_OFFSET_MS);
 
+  // Schedule Flux 3 cycle every 45 minutes, starting 20 minutes after launch
+  setTimeout(() => {
+    runFlux3Cycle().catch((err) =>
+      console.error(`[flux3] Unhandled error: ${err.message}`)
+    );
+    setInterval(() => {
+      runFlux3Cycle().catch((err) =>
+        console.error(`[flux3] Unhandled error: ${err.message}`)
+      );
+    }, FLUX3_INTERVAL_MS);
+  }, FLUX3_OFFSET_MS);
+
   console.log('[main] Perplexity cycle: every 30 min');
   console.log('[main] Flux 2 cycle: every 60 min, first run in 15 min');
+  console.log('[main] Flux 3 cycle: every 45 min, first run in 20 min');
 }
 
 main();

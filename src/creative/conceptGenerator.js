@@ -1,6 +1,6 @@
-import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept } from '../database/db.js';
+import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended } from '../database/db.js';
 import { getRecentTokens } from '../scout/webSocketScout.js';
-import { getTwitterContext } from '../scout/grokScout.js';
+import { getTwitterContext, scanCryptoTwitter } from '../scout/grokScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -68,6 +68,26 @@ ABSOLUTE RULES:
 1. NEVER reuse a token name that already exists in the similar tokens list. If "NATO's Dog" exists, you cannot name your token "NATO's Dog". Create something NEW.
 2. NEVER make tokens ABOUT crypto. No "Rug Pull", no "Pump Simulator", no "Diamond Hands", no meta-commentary on trading or blockchain. The token must be a MEME that happens to be on a blockchain — not a joke about blockchain.
 3. The token must be funny or absurd ON ITS OWN, even if someone has never heard of crypto. If you need to understand crypto to get the joke, it's a bad token.
+
+TRENDING CONCEPT RULE:
+- When a concept/word/name is clearly trending (you can tell because CT is talking about it, or multiple tokens exist around it), the play is to RIDE THE SAME WORD, not invent a synonym or distant reference.
+- Example: "Claw" is trending on pump.fun → good token: "OpenClaw", "ClawtoClaw", "ClawBack" → BAD token: "Grip", "Wolverine's Lawyer"
+- Example: NVIDIA is trending → good token: "Short Nvidia", "Long Nvidia", "Nvidia Intern" → BAD token: "Nvidropia", "Chip Daddy" (too disconnected)
+- The golden rule: if someone searches the trending word on pump.fun, YOUR token must show up. If your name doesn't contain the trending word, you've already lost.
+- NEVER replace a trending word with a synonym, metaphor, or obscure reference. Degens search the EXACT trending word.
+
+AUDIENCE & TONE:
+- Your audience is a 22-year-old degen on pump.fun who scrolls Twitter between gaming sessions. He does NOT know who Soleimani is. He does NOT read foreign policy.
+- If a concept requires specific political/historical knowledge to be funny, it's TOO NICHE. The humor must work with zero context.
+- Use the darkest, most unhinged humor CT uses. If Grok's Twitter context shows CT making dark jokes, LEAN INTO THEM, don't sanitize.
+- Never be tasteful. Tasteful tokens don't pump.
+- Test: would this name make a 22-year-old degen exhale through his nose and click buy? If not, try harder.
+
+FORMAT RULES:
+- Token name: MAXIMUM 32 characters. If your name is longer, shorten it.
+- Ticker: MAXIMUM 10 characters. Must be a real word or recognizable name.
+- Ticker must NOT just be the concept repeated. If the token is about a hamster who is a NEET, the ticker is NOT $NEET (already taken/obvious). Find a twist: $NEEH, $HAMST, etc.
+- When a token is clearly a RESPONSE to an existing token (like $HERE already exists), the obvious play is the mirror/opposite ($THERE, $GONE, etc.) — don't overthink it.
 
 BAD examples (never do this):
 - "Rug Pull Simulator" — meta-crypto, nobody laughs
@@ -235,6 +255,13 @@ RULES:
 - Ticker must be a REAL word, never an abbreviation. Must be immediately obvious what it means.
 - Description: one sentence, shitpost energy, sounds like a drunk tweet not a CNN headline.
 
+QUALITY CHECK — Before returning, verify:
+1. Could someone who has never heard of crypto laugh at this name? If no, try again.
+2. Can you IMMEDIATELY picture what the thumbnail image would look like? If no, the concept is too abstract — make it more visual/concrete.
+3. Is the ticker just the main word from the name repeated? If yes, find a cleverer ticker that a degen would actually type.
+4. If the migrated token has an obvious mirror/opposite/sequel (e.g. $HERE → $THERE, $UP → $DOWN, $DOG → $CAT), USE IT instead of inventing something unrelated.
+5. Did you take a trending concept and add an unnecessary creative twist? If the migrated token is about "Claw" and your token name doesn't contain "Claw", you went too far. Dial it back. The trending word must appear in the token name.
+
 Return JSON only:
 {
   "name": string,
@@ -315,17 +342,69 @@ async function runWithConcurrency(tasks, limit) {
 }
 
 // ---------------------------------------------------------------------------
+// Flux 3: CT trend → concept
+// ---------------------------------------------------------------------------
+
+async function generateFromCTTrend(trend) {
+  if (!trend) return [];
+
+  const similar = searchSimilarTokens(trend.keywords || []);
+  const recentMatches = similar;
+  const pumpfunTickers = recentMatches.slice(0, 5).map(t => `$${t.ticker}`).join(', ');
+  const existingList = similar.length > 0
+    ? '\nTOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES):\n' +
+      similar.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
+    : '';
+
+  const prompt = `A meme/narrative is RISING on Crypto Twitter right now:
+
+TREND: ${trend.trend}
+WHAT CT IS SAYING: ${trend.what_ct_says}
+VIBE: ${trend.vibe}
+MEME POTENTIAL: ${trend.meme_potential}
+${existingList}
+
+Create a pump.fun token that rides this CT wave. The token should feel like it was made BY a degen who saw this trend 5 minutes ago — not by a marketing team.
+
+RULES:
+- The name should capture the EXACT energy CT has about this trend
+- Use the slang and language from what CT is saying
+- If CT already has a specific joke or nickname, build on it
+- The token must be funny ON ITS OWN even without knowing the CT context
+
+Return JSON only:
+{
+  "name": string (max 32 chars),
+  "ticker": string (max 10 chars, real word, not abbreviation),
+  "description": string (1 sentence, shitpost energy),
+  "narrative": string (1 sentence, why degens buy this),
+  "image_prompt": string (visual for pump.fun thumbnail),
+  "flux": "3"
+}`;
+
+  const concept = await callClaude(prompt);
+  return concept ? { ...concept, flux: '3', source_signal: trend.trend, source_migrations: pumpfunTickers || 'CT trend' } : null;
+}
+
+// ---------------------------------------------------------------------------
 // MAIN EXPORT
 // ---------------------------------------------------------------------------
 
-async function generateConcepts(signals = [], migrations = []) {
+async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   const tasks = [];
 
   const usedTopics = new Set();
 
-  // Flux 1: up to 3 signals (skip if concept for same topic generated in last 2h)
-  for (const signal of signals.slice(0, 3)) {
-    if (hasRecentConcept(signal.topic)) {
+  // Flux 1: up to 3 signals — deduplicate by category, skip if generated in last 6h
+  const seenCategories = new Set();
+  const diverseSignals = signals.filter(s => {
+    const cat = s.category || JSON.parse(s.reasoning || '{}').category || 'other';
+    if (seenCategories.has(cat)) return false;
+    seenCategories.add(cat);
+    return true;
+  });
+  for (const signal of diverseSignals.slice(0, 3)) {
+    if (hasRecentConceptExtended(signal.topic)) {
       console.log(`[conceptGenerator] Flux 1: skipping "${signal.topic}" — already generated recently`);
       continue;
     }
@@ -350,18 +429,13 @@ async function generateConcepts(signals = [], migrations = []) {
     tasks.push(() => generateVariants([migration]));
   }
 
-  // Flux 3: up to 2 signals that have high-volume historical matches (proven theme appetite)
-  let flux3Count = 0;
-  for (const signal of signals) {
-    if (flux3Count >= 2) break;
-    if (usedTopics.has(signal.topic) || hasRecentConcept(signal.topic)) continue;
-    const similar = searchSimilarTokens(signal.keywords || []);
-    const hasProven = similar && similar.some(t => (t.volume_sol ?? 0) > 500);
-    if (hasProven) {
-      usedTopics.add(signal.topic);
-      tasks.push(() => generateCrossover(signal));
-      flux3Count++;
+  // Flux 3: up to 2 concepts from CT trends (Grok-sourced)
+  for (const trend of ctTrends.slice(0, 2)) {
+    if (hasRecentConceptExtended(trend.trend)) {
+      console.log(`[conceptGenerator] Flux 3: skipping "${trend.trend}" — already generated recently`);
+      continue;
     }
+    tasks.push(() => generateFromCTTrend(trend));
   }
 
   const concepts = await runWithConcurrency(tasks, CONCURRENCY);
@@ -397,5 +471,5 @@ async function generateConcepts(signals = [], migrations = []) {
   return flat;
 }
 
-export { generateFromSignal, generateVariants, generateCrossover };
+export { generateFromSignal, generateVariants, generateCrossover, generateFromCTTrend };
 export default generateConcepts;

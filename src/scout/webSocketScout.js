@@ -46,6 +46,7 @@ function pushRecent(token) {
 // --- Event handlers ---
 
 function handleNewToken(data) {
+  console.log(`[WebSocket] New token received: ${data.name} ($${data.symbol})`);
   const name = data.name || '';
   const ticker = data.symbol || data.ticker || '';
   const description = data.description || '';
@@ -75,12 +76,14 @@ function handleNewToken(data) {
   };
 
   insertToken(token);
+  console.log(`[WebSocket] Token inserted in DB: ${data.name}`);
   pushRecent({ ...token, migrated: false });
 
   console.log(`[WebSocket] new token: ${name} $${ticker}`);
 }
 
 function handleMigration(data) {
+  console.log(`[WebSocket] Migration received: ${data.name || 'unknown'} ($${data.symbol || 'unknown'})`);
   const name = data.name || '';
   const ticker = data.symbol || data.ticker || '';
   const migrated_at = new Date(Date.now()).toISOString();
@@ -94,11 +97,11 @@ function handleMigration(data) {
 }
 
 function isNewToken(data) {
-  return typeof data.name !== 'undefined' && typeof data.traderPublicKey !== 'undefined' && !data.pool;
+  return data.txType === 'create';
 }
 
 function isMigration(data) {
-  return typeof data.pool !== 'undefined' || data.txType === 'migrate';
+  return data.txType === 'migrate' || data.pool === 'raydium';
 }
 
 // --- WebSocket connection ---

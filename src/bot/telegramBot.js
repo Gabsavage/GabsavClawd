@@ -45,7 +45,7 @@ function fluxLabel(flux) {
   switch (String(flux)) {
     case '1': return '🌍 Flux 1 — World → Crypto';
     case '2': return '🔄 Flux 2 — Crypto → Crypto';
-    case '3': return '⚡ Flux 3 — World → Crypto → Crypto';
+    case '3': return '🔥 Flux 3 — CT Trend';
     default:  return `Flux ${flux}`;
   }
 }
@@ -77,44 +77,43 @@ function formatConcept(concept) {
     ``,
   ];
 
-  // Signal block — only show if there's something useful
-  const source = formatSource(concept);
-  const date   = formatDate(concept.created_at);
-  const topic  = concept.topic || concept.source_signal || concept.title;
+  const fluxStr = String(concept.flux);
 
-  if (topic || source || date || concept.url) {
-    lines.push(`📰 <b>Signal</b>`);
-    if (topic)           lines.push(`Topic: ${esc(topic)}`);
-    if (concept.summary) lines.push(`${esc(concept.summary)}`);
-    if (source)          lines.push(`Source: ${esc(source)}`);
-    if (date)            lines.push(`Date: ${esc(date)}`);
-    if (concept.url)     lines.push(`URL: ${concept.url}`);
+  if (fluxStr === '1') {
+    // Flux 1 — full Perplexity signal block
+    const source = formatSource(concept);
+    const topic  = concept.topic || concept.source_signal || concept.title;
+    if (topic || source || concept.url) {
+      lines.push(`📰 <b>Signal</b>`);
+      if (topic)           lines.push(`Topic: ${esc(topic)}`);
+      if (concept.summary) lines.push(`${esc(concept.summary)}`);
+      if (source)          lines.push(`Source: ${esc(source)}`);
+      if (concept.url)     lines.push(`URL: ${concept.url}`);
+      const strength = concept.signal_strength;
+      const spread   = concept.spread;
+      const velocity = concept.velocity;
+      if (strength != null || spread || velocity) {
+        const parts = [];
+        if (strength != null) parts.push(`Signal: ${strength}/10`);
+        if (spread)           parts.push(`Spread: ${esc(spread)}`);
+        if (velocity)         parts.push(`Velocity: ${esc(velocity)}`);
+        lines.push(parts.join(' | '));
+      }
+      if (concept.shelf_life) lines.push(`Shelf life: ${esc(concept.shelf_life)}`);
+      if (concept.absurdity_angle && concept.absurdity_angle !== 'none') {
+        lines.push(`Angle: <i>${esc(concept.absurdity_angle)}</i>`);
+      }
+      const sourcesArr = Array.isArray(concept.sources) ? concept.sources : [];
+      lines.push(`Sources: ${sourcesArr.length > 0 ? sourcesArr.map(esc).join(', ') : 'N/A'}`);
+      if (concept.source_date) lines.push(`Date: ${esc(concept.source_date)}`);
+      lines.push(``);
+    }
+  } else if (fluxStr === '2' || fluxStr === '3') {
+    // Flux 2 & 3 — compact inspiration block
     if (concept.source_migrations) {
-      lines.push(`Based on: ${esc(concept.source_migrations)}`);
+      lines.push(`💡 Inspiration: ${esc(concept.source_migrations)}`);
+      lines.push(``);
     }
-
-    // Signal metadata from Perplexity
-    const strength = concept.signal_strength;
-    const spread   = concept.spread;
-    const velocity = concept.velocity;
-    if (strength != null || spread || velocity) {
-      const parts = [];
-      if (strength != null) parts.push(`Signal: ${strength}/10`);
-      if (spread)           parts.push(`Spread: ${esc(spread)}`);
-      if (velocity)         parts.push(`Velocity: ${esc(velocity)}`);
-      lines.push(parts.join(' | '));
-    }
-    if (concept.shelf_life) {
-      lines.push(`Shelf life: ${esc(concept.shelf_life)}`);
-    }
-    if (concept.absurdity_angle && concept.absurdity_angle !== 'none') {
-      lines.push(`Angle: <i>${esc(concept.absurdity_angle)}</i>`);
-    }
-    const sourcesArr = Array.isArray(concept.sources) ? concept.sources : [];
-    lines.push(`Sources: ${sourcesArr.length > 0 ? sourcesArr.map(esc).join(', ') : 'N/A'}`);
-    if (concept.source_date) lines.push(`Date: ${esc(concept.source_date)}`);
-
-    lines.push(``);
   }
 
   lines.push(

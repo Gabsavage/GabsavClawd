@@ -207,6 +207,14 @@ export function hasRecentConcept(topic) {
   return !!row;
 }
 
+export function hasRecentConceptExtended(topic, hours = 6) {
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const row = db
+    .prepare(`SELECT id FROM concepts WHERE source_signal = ? AND created_at >= ?`)
+    .get(topic, since);
+  return !!row;
+}
+
 // --- Signals ---
 
 export function insertSignal(signal) {

@@ -8,7 +8,7 @@ const SYSTEM_MESSAGE =
   'You are a REPORTER, not an analyst. Report facts and buzz levels. Do not editorialize, do not judge humor potential, do not try to be creative.\n\n' +
   'SOURCES YOU MONITOR:\n' +
   '- US mainstream media: CNN, Fox News, NYT, AP, Reuters, NBC, ABC\n' +
-  '- Social platforms: X/Twitter trending, Reddit front page, TikTok trending sounds\n' +
+  '- Social platforms: X/Twitter trending, Reddit front page, TikTok trending\n' +
   '- Internet culture: Know Your Meme, YouTube trending\n' +
   '- Crypto media: CoinDesk, The Block, Decrypt — ONLY for major drama (hacks, rug pulls, regulatory bombs), NOT price action\n\n' +
   'PRIORITY ORDER:\n' +
@@ -16,8 +16,8 @@ const SYSTEM_MESSAGE =
   '2. Major geopolitics — wars, strikes, tensions — ONLY if trending on US Twitter\n' +
   '3. Viral animals or creatures — any animal going viral on multiple platforms\n' +
   '4. Internet/meme culture — viral moments, trends, challenges, absurd content blowing up\n' +
-  '5. Celebrities — unexpected actions, feuds, gaffes, scandals\n' +
-  '6. Crypto drama — exchange collapses, major rug pulls, regulatory crackdowns\n\n' +
+  '5. Crypto drama — exchange collapses, major rug pulls, regulatory crackdowns\n\n' +
+  '6. Celebrities — unexpected actions, feuds, gaffes, scandals\n' +
   'SCALE FILTER (CRITICAL):\n' +
   '- A topic MUST be on at least 2 major platforms or outlets to qualify\n' +
   '- "Would the average American scrolling Twitter see this today?" — if no, SKIP\n' +
@@ -26,12 +26,11 @@ const SYSTEM_MESSAGE =
   'NEVER INCLUDE:\n' +
   '- Sports scores or game results (unless off-field drama)\n' +
   '- Economic data (CPI, rates, jobs)\n' +
-  '- Mass casualties, shootings, terrorist attacks\n' +
   '- Anything you cannot back with real, named sources from the last 48 hours\n\n' +
   'Always respond with valid JSON only. No markdown, no backticks, no explanation.';
 
 const USER_MESSAGE =
-  'Today is ' + new Date().toISOString().split('T')[0] + '. Scan the last 48 hours.\n\n' +
+  'Today is ' + new Date().toISOString().split('T')[0] + '. Scan the last 72 hours.\n\n' +
   'Return 5-8 topics that are generating the MOST online conversation right now.\n\n' +
   'DIVERSITY REQUIREMENT: You MUST include topics from at least 3 different categories. Do not return more than 3 topics from any single category.\n\n' +
   'For each topic return:\n' +
@@ -103,7 +102,7 @@ export async function runPerplexityScan() {
     return [];
   }
 
-  const signals = topics.filter(t => t.signal_strength >= 7 && t.spread === 'widespread');
+  const signals = topics.filter(t => t.signal_strength >= 7 && t.spread === 'widespread' && t.category !== 'other' && (t.category !== 'sports' || t.signal_strength >= 9));
   console.log(`[Perplexity] ${signals.length} signal(s): ${signals.map(s => s.topic).join(' | ')}`);
   const created_at = new Date().toISOString();
 
@@ -155,7 +154,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const s of signals) {
       console.log(`  [${s.signal_strength}/10] ${s.topic} (${s.category}) [${s.velocity}] [${s.spread}]`);
       console.log(`    ${s.summary}`);
-      console.log(`    absurdity: ${s.absurdity_angle}`);
+      console.log(`    what_happened: ${s.what_happened}`);
       console.log(`    shelf life: ${s.shelf_life}`);
       console.log(`    keywords: ${s.keywords.join(', ')}`);
       console.log(`    sources: ${(s.sources ?? []).join(', ')}\n`);
