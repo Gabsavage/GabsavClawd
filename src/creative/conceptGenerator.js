@@ -219,14 +219,18 @@ Return JSON only:
 // FLUX 2 — Crypto → Crypto
 // ---------------------------------------------------------------------------
 
-async function generateVariants(migrations) {
-  if (!migrations || migrations.length === 0) return [];
+async function generateVariants(movers) {
+  if (!movers || movers.length === 0) return [];
 
-  const migrationList = migrations
-    .map((t) => `  - "${t.name}" ($${t.ticker}) | theme: ${t.theme || 'unknown'} | format: ${t.format || 'unknown'}`)
+  // Filter out movers with empty name/ticker
+  const validMovers = movers.filter(m => m.name && m.ticker);
+  if (validMovers.length === 0) return [];
+
+  const migrationList = validMovers
+    .map((t) => `  - "${t.name}" ($${t.ticker}) | vol $${t.volume_usd_h1 || 0}/h | +${t.price_change_h1 || 0}% | theme: ${t.theme || 'unknown'}`)
     .join('\n');
 
-  const migrationKeywords = migrations.flatMap(m => {
+  const migrationKeywords = validMovers.flatMap(m => {
     const name = (m.name || '').toLowerCase().split(/\s+/);
     const ticker = (m.ticker || '').toLowerCase();
     return [...name, ticker].filter(Boolean);
@@ -237,10 +241,10 @@ async function generateVariants(migrations) {
       existingTokens.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '';
 
-  const migrationQuery = migrations.map(m => m.name || m.ticker).join(' OR ') + ' crypto twitter memes';
+  const migrationQuery = validMovers.map(m => m.name || m.ticker).join(' OR ') + ' crypto twitter memes';
   const twitterContext = await getTwitterContext(migrationQuery);
 
-  const prompt = `This token just successfully migrated on pump.fun (hit 69 SOL threshold):
+  const prompt = `These tokens are pumping HARD right now on pump.fun (top volume in the last hour):
 
 ${migrationList}${twitterContext ? `\n\nWHAT CRYPTO TWITTER IS SAYING RIGHT NOW:\n${twitterContext}\n\nUse this CT context. If CT already has memes or slang about this, lean into it instead of inventing from scratch.` : ''}${existingList}
 
@@ -281,7 +285,7 @@ Return JSON only:
 }`;
 
   const concept = await callClaude(prompt);
-  return { ...concept, flux: '2', source_migrations: migrations.map((t) => t.ticker).join(', ') };
+  return { ...concept, flux: '2', source_migrations: validMovers.map((t) => t.ticker).join(', ') };
 }
 
 // ---------------------------------------------------------------------------

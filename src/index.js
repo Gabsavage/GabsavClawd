@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { startWebSocket, getRecentTokens, getRecentMigrations } from './scout/webSocketScout.js';
 import { runPerplexityScan, getLatestSignals } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
-import { refreshTokenData } from './scout/dexScreenerScout.js';
+import { refreshTokenData, getTopMovers } from './scout/dexScreenerScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { startBot, sendConcept, stopBot, getPendingLaunches } from './bot/telegramBot.js';
 
@@ -160,22 +160,22 @@ async function runFlux2Cycle() {
   console.log(`[flux2] Cycle starting at ${entry.startedAt}`);
 
   try {
-    const migrations = getRecentMigrations(24);
-    entry.signalCount = migrations.length;
+    const movers = getTopMovers(10);
+    entry.signalCount = movers.length;
 
-    if (migrations.length === 0) {
-      console.log('[flux2] No recent migrations — skipping');
+    if (movers.length === 0) {
+      console.log('[flux2] No top movers found — skipping');
       finishEntry(entry, { conceptCount: 0 });
       return;
     }
 
-    console.log(`[flux2] ${migrations.length} migration(s) found`);
-    const concepts = await generateConcepts([], migrations);
+    console.log(`[flux2] ${movers.length} top mover(s) found`);
+    const concepts = await generateConcepts([], movers);
     entry.conceptCount = concepts.length;
     console.log(`[flux2] ${concepts.length} variant(s) generated`);
 
     const sent = await broadcastConcepts(concepts);
-    console.log(`[flux2] ${sent}/${concepts.length} variant(s) sent to Telegram`);
+    console.log(`[flux2] ${sent}/${concepts.length} concept(s) sent to Telegram`);
 
     finishEntry(entry, { conceptCount: concepts.length });
   } catch (err) {
