@@ -46,7 +46,10 @@ function pushRecent(token) {
 // --- Event handlers ---
 
 function handleNewToken(data) {
-  console.log(`[WebSocket] New token received: ${data.name} ($${data.symbol})`);
+  const marketCap = data.marketCapSol || 0;
+  if (marketCap < 30) return; // Ignore tokens under 30 SOL market cap
+
+  console.log(`[WebSocket] New token (${marketCap.toFixed(0)} SOL mcap): ${data.name} ($${data.symbol})`);
   const name = data.name || '';
   const ticker = data.symbol || data.ticker || '';
   const description = data.description || '';
@@ -65,7 +68,7 @@ function handleNewToken(data) {
     description,
     created_at,
     migrated_at: null,
-    volume_sol: 0,
+    volume_sol: data.marketCapSol || 0,
     trade_count: 0,
     theme,
     format,
@@ -73,10 +76,10 @@ function handleNewToken(data) {
     migrated: 0,
     source: 'pumpportal',
     raw_data: JSON.stringify(data),
+    mint: data.mint || null,
   };
 
   insertToken(token);
-  console.log(`[WebSocket] Token inserted in DB: ${data.name}`);
   pushRecent({ ...token, migrated: false });
 
   console.log(`[WebSocket] new token: ${name} $${ticker}`);
@@ -88,8 +91,19 @@ function handleMigration(data) {
   const ticker = data.symbol || data.ticker || '';
   const migrated_at = new Date(Date.now()).toISOString();
 
-  db.prepare(`UPDATE tokens SET migrated = 1, migrated_at = ? WHERE ticker = ?`)
+  const result = db.prepare(`UPDATE tokens SET migrated = 1, migrated_at = ? WHERE ticker = ?`)
     .run(migrated_at, ticker);
+
+  if (result.changes === 0) {
+    // Token wasn't in DB yet — insert it as already migrated
+    try {
+      db.prepare(`INSERT INTO tokens (name, ticker, migrated, migrated_at, source, created_at) VALUES (?, ?, 1, ?, 'pumpportal', ?)`)
+        .run(name || ticker, ticker, migrated_at, new Date().toISOString());
+      console.log(`[WebSocket] Migration inserted (new): ${name || ticker} ($${ticker})`);
+    } catch (e) {
+      // UNIQUE constraint = token already exists with different casing, ignore
+    }
+  }
 
   pushRecent({ name, ticker, migrated: true, migrated_at, source: 'pumpportal' });
 

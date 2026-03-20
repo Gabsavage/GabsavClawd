@@ -94,6 +94,33 @@ db.exec(`
   }
 }
 
+// Migrate: add new columns to tokens if they don't exist yet
+try { db.exec(`ALTER TABLE tokens ADD COLUMN mint TEXT`); } catch {}
+for (const col of [
+  'volume_usd_h1 REAL DEFAULT 0',
+  'volume_usd_h24 REAL DEFAULT 0',
+  'price_change_h1 REAL DEFAULT 0',
+  'price_change_h24 REAL DEFAULT 0',
+  'buys_h24 INTEGER DEFAULT 0',
+  'sells_h24 INTEGER DEFAULT 0',
+  'price_usd TEXT',
+  'last_dex_update TEXT',
+]) {
+  try { db.exec(`ALTER TABLE tokens ADD COLUMN ${col}`); } catch {}
+}
+
+// Token volume history table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS token_volume_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mint TEXT NOT NULL,
+    volume_usd_h1 REAL,
+    price_change_h1 REAL,
+    price_usd TEXT,
+    recorded_at TEXT NOT NULL
+  );
+`);
+
 // Migrate: add columns to concepts if they don't exist yet
 for (const col of ['sources TEXT', 'source_date TEXT', 'source_signal TEXT']) {
   try { db.exec(`ALTER TABLE concepts ADD COLUMN ${col}`); } catch {}
@@ -124,10 +151,10 @@ export function insertToken(token) {
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO tokens
       (name, ticker, description, created_at, migrated_at, volume_sol, trade_count,
-       theme, format, keywords, migrated, source, raw_data)
+       theme, format, keywords, migrated, source, raw_data, mint)
     VALUES
       (@name, @ticker, @description, @created_at, @migrated_at, @volume_sol, @trade_count,
-       @theme, @format, @keywords, @migrated, @source, @raw_data)
+       @theme, @format, @keywords, @migrated, @source, @raw_data, @mint)
   `);
   return stmt.run(token);
 }
@@ -138,6 +165,26 @@ export function updateTokenVolume(ticker, volume_sol, trade_count) {
     WHERE ticker = @ticker
   `);
   return stmt.run({ ticker, volume_sol, trade_count });
+}
+
+export function updateTokenDexData(mint, data) {
+  db.prepare(`UPDATE tokens SET
+    volume_usd_h1 = ?, volume_usd_h24 = ?,
+    price_change_h1 = ?, price_change_h24 = ?,
+    buys_h24 = ?, sells_h24 = ?,
+    price_usd = ?, last_dex_update = ?
+    WHERE mint = ?`
+  ).run(
+    data.volumeH1, data.volumeH24,
+    data.priceChangeH1, data.priceChangeH24,
+    data.buysH24, data.sellsH24,
+    data.priceUsd, new Date().toISOString(),
+    mint
+  );
+
+  db.prepare(`INSERT INTO token_volume_history (mint, volume_usd_h1, price_change_h1, price_usd, recorded_at)
+    VALUES (?, ?, ?, ?, ?)`)
+  .run(mint, data.volumeH1, data.priceChangeH1, data.priceUsd, new Date().toISOString());
 }
 
 export function getTopThemes(limit = 10) {

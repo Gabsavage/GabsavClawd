@@ -1,4 +1,4 @@
-import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended } from '../database/db.js';
+import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended } from '../database/db.js';
 import { getRecentTokens } from '../scout/webSocketScout.js';
 import { getTwitterContext, scanCryptoTwitter } from '../scout/grokScout.js';
 
@@ -174,7 +174,8 @@ async function generateFromSignal(signal) {
     ? similar.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '  (none)';
 
-  const twitterContext = await getTwitterContext(signal.topic || signal.title);
+  const grokQuery = (signal.topic || signal.title) + ' crypto twitter memes reactions';
+  const twitterContext = await getTwitterContext(grokQuery);
 
   const prompt = `TRENDING TOPIC: ${signal.topic}
 WHAT'S HAPPENING: ${signal.summary}
@@ -190,7 +191,7 @@ ${blacklistBlock}
 
 TOP PERFORMING THEMES RIGHT NOW: ${topThemes.join(', ')}
 TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}
-${twitterContext ? `\nWHAT CRYPTO TWITTER IS SAYING RIGHT NOW:\n${twitterContext}\n\nUse this CT context to match the ACTUAL language and angles degens are using. If CT has a specific meme or nickname for this topic, USE IT.` : ''}
+${twitterContext ? `\nWHAT CRYPTO TWITTER IS SAYING RIGHT NOW:\n${twitterContext}\n\nUse this CT context to find the REAL angle degens care about — not the news headline. Example: if the signal is "Spider-Man trailer breaks records", you do NOT care about the view count. You care about what CT is memeing: the villain, a funny scene, a casting choice, a reaction meme. The token must be about what makes CT REACT, not about what the news reported. If CT has a specific meme, nickname, or joke about this topic, build the token around THAT, not the headline.` : ''}
 Study the naming style of existing tokens above, then create something COMPLETELY NEW for this trending topic.
 
 Return JSON only:
@@ -236,7 +237,7 @@ async function generateVariants(migrations) {
       existingTokens.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '';
 
-  const migrationQuery = migrations.map(m => m.name || m.ticker).join(' OR ');
+  const migrationQuery = migrations.map(m => m.name || m.ticker).join(' OR ') + ' crypto twitter memes';
   const twitterContext = await getTwitterContext(migrationQuery);
 
   const prompt = `This token just successfully migrated on pump.fun (hit 69 SOL threshold):
@@ -259,6 +260,13 @@ QUALITY CHECK — Before returning, verify:
 1. Could someone who has never heard of crypto laugh at this name? If no, try again.
 2. Can you IMMEDIATELY picture what the thumbnail image would look like? If no, the concept is too abstract — make it more visual/concrete.
 3. Is the ticker just the main word from the name repeated? If yes, find a cleverer ticker that a degen would actually type.
+6. Is your ticker just one of the words from the token name? If yes, that's LAZY. The ticker must add something — a different angle, a punchline, an inside joke.
+   - BAD: "Crypto Daddy" → $DADDY (just the last word)
+   - BAD: "My Bot Farms Yours" → $FARMS (just a word from the name)
+   - GOOD: "Crypto Daddy" → $PAPI (different language twist, same energy)
+   - GOOD: "My Bot Farms Yours" → $BOTWAR (compounds the concept)
+   - GOOD: "General Rektami" → $REKT (captures the joke, not just a word from the name)
+   The ticker should make someone smirk INDEPENDENTLY of reading the full name.
 4. If the migrated token has an obvious mirror/opposite/sequel (e.g. $HERE → $THERE, $UP → $DOWN, $DOG → $CAT), USE IT instead of inventing something unrelated.
 5. Did you take a trending concept and add an unnecessary creative twist? If the migrated token is about "Claw" and your token name doesn't contain "Claw", you went too far. Dial it back. The trending word must appear in the token name.
 
@@ -350,7 +358,22 @@ async function generateFromCTTrend(trend) {
 
   const similar = searchSimilarTokens(trend.keywords || []);
   const recentMatches = similar;
-  const pumpfunTickers = recentMatches.slice(0, 5).map(t => `$${t.ticker}`).join(', ');
+  let pumpfunTickers = recentMatches.slice(0, 5).map(t => `$${t.ticker}`).join(', ');
+
+  if (!pumpfunTickers) {
+    const recentPumpfun = db.prepare(
+      `SELECT ticker FROM tokens WHERE source = 'pumpportal' AND created_at >= ? ORDER BY volume_sol DESC LIMIT 10`
+    ).all(new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString());
+
+    const keywords = (trend.keywords || []).map(k => k.toLowerCase());
+    const matches = recentPumpfun.filter(t =>
+      keywords.some(k => (t.ticker || '').toLowerCase().includes(k))
+    );
+
+    if (matches.length > 0) {
+      pumpfunTickers = matches.map(t => `$${t.ticker}`).join(', ');
+    }
+  }
   const existingList = similar.length > 0
     ? '\nTOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES):\n' +
       similar.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
@@ -396,12 +419,11 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   const usedTopics = new Set();
 
   // Flux 1: up to 3 signals — deduplicate by category, skip if generated in last 6h
-  const seenCategories = new Set();
+  const categoryCounts = {};
   const diverseSignals = signals.filter(s => {
     const cat = s.category || JSON.parse(s.reasoning || '{}').category || 'other';
-    if (seenCategories.has(cat)) return false;
-    seenCategories.add(cat);
-    return true;
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    return categoryCounts[cat] <= 2;
   });
   for (const signal of diverseSignals.slice(0, 3)) {
     if (hasRecentConceptExtended(signal.topic)) {

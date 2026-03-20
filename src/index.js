@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { startWebSocket, getRecentTokens, getRecentMigrations } from './scout/webSocketScout.js';
 import { runPerplexityScan, getLatestSignals } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
+import { refreshTokenData } from './scout/dexScreenerScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { startBot, sendConcept, stopBot, getPendingLaunches } from './bot/telegramBot.js';
 
@@ -234,43 +235,47 @@ async function main() {
   startBot();
   startWebSocket();
 
-  // Run first Perplexity cycle immediately
-  await runPerplexityCycle();
+  // TEMP: disabled — Flux 1 / Perplexity cycle disabled for testing
+  // await runPerplexityCycle();
+  // setInterval(() => {
+  //   runPerplexityCycle().catch((err) =>
+  //     console.error(`[perplexity] Unhandled error: ${err.message}`)
+  //   );
+  // }, PERPLEXITY_INTERVAL_MS);
 
-  // Schedule Perplexity cycle every 30 minutes
+  // TEMP: modified — Flux 2 launches immediately (offset removed)
+  runFlux2Cycle().catch((err) =>
+    console.error(`[flux2] Unhandled error: ${err.message}`)
+  );
   setInterval(() => {
-    runPerplexityCycle().catch((err) =>
-      console.error(`[perplexity] Unhandled error: ${err.message}`)
-    );
-  }, PERPLEXITY_INTERVAL_MS);
-
-  // Schedule Flux 2 cycle every 60 minutes, starting 15 minutes after launch
-  setTimeout(() => {
     runFlux2Cycle().catch((err) =>
       console.error(`[flux2] Unhandled error: ${err.message}`)
     );
-    setInterval(() => {
-      runFlux2Cycle().catch((err) =>
-        console.error(`[flux2] Unhandled error: ${err.message}`)
-      );
-    }, FLUX2_INTERVAL_MS);
-  }, FLUX2_OFFSET_MS);
+  }, FLUX2_INTERVAL_MS);
 
-  // Schedule Flux 3 cycle every 45 minutes, starting 20 minutes after launch
-  setTimeout(() => {
+  // TEMP: modified — Flux 3 launches immediately (offset removed)
+  runFlux3Cycle().catch((err) =>
+    console.error(`[flux3] Unhandled error: ${err.message}`)
+  );
+  setInterval(() => {
     runFlux3Cycle().catch((err) =>
       console.error(`[flux3] Unhandled error: ${err.message}`)
     );
-    setInterval(() => {
-      runFlux3Cycle().catch((err) =>
-        console.error(`[flux3] Unhandled error: ${err.message}`)
-      );
-    }, FLUX3_INTERVAL_MS);
-  }, FLUX3_OFFSET_MS);
+  }, FLUX3_INTERVAL_MS);
 
-  console.log('[main] Perplexity cycle: every 30 min');
-  console.log('[main] Flux 2 cycle: every 60 min, first run in 15 min');
-  console.log('[main] Flux 3 cycle: every 45 min, first run in 20 min');
+  // DexScreener token data refresh — every 15 minutes, immediate start
+  const DEX_REFRESH_MS = 15 * 60 * 1000;
+  const runDexRefresh = () => {
+    console.log('[DexScreener] Token data refresh...');
+    refreshTokenData().catch(err => console.error('[DexScreener] Refresh error:', err.message));
+  };
+  runDexRefresh();
+  setInterval(runDexRefresh, DEX_REFRESH_MS);
+
+  console.log('[main] Flux 1: DISABLED (TEMP)');
+  console.log('[main] Flux 2 cycle: every 60 min, immediate start');
+  console.log('[main] Flux 3 cycle: every 45 min, immediate start');
+  console.log('[main] DexScreener refresh: every 15 min, immediate start');
 }
 
 main();

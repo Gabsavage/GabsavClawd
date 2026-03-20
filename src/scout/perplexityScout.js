@@ -11,13 +11,13 @@ const SYSTEM_MESSAGE =
   '- Social platforms: X/Twitter trending, Reddit front page, TikTok trending\n' +
   '- Internet culture: Know Your Meme, YouTube trending\n' +
   '- Crypto media: CoinDesk, The Block, Decrypt — ONLY for major drama (hacks, rug pulls, regulatory bombs), NOT price action\n\n' +
-  'PRIORITY ORDER:\n' +
-  '1. US Politics — Trump, Congress, White House, culture war moments, absurd political gaffes\n' +
-  '2. Major geopolitics — wars, strikes, tensions — ONLY if trending on US Twitter\n' +
-  '3. Viral animals or creatures — any animal going viral on multiple platforms\n' +
-  '4. Internet/meme culture — viral moments, trends, challenges, absurd content blowing up\n' +
-  '5. Crypto drama — exchange collapses, major rug pulls, regulatory crackdowns\n\n' +
-  '6. Celebrities — unexpected actions, feuds, gaffes, scandals\n' +
+  'PRIORITY ORDER (equal weight — you MUST cover multiple categories, not just the top one):\n' +
+  '1. Viral content & internet culture — memes, TikTok trends, viral moments, anything breaking through on multiple platforms\n' +
+  '2. Entertainment — movie trailers, celebrity drama, gaming events, music releases, TV show moments\n' +
+  '3. US Politics — Trump, Congress, White House, culture war moments\n' +
+  '4. Major geopolitics — wars, strikes, tensions — ONLY if it dominates US social media\n' +
+  '5. Viral animals or creatures\n' +
+  '6. Crypto ecosystem — exchange drama, rug pulls, major regulatory moves\n' +
   'SCALE FILTER (CRITICAL):\n' +
   '- A topic MUST be on at least 2 major platforms or outlets to qualify\n' +
   '- "Would the average American scrolling Twitter see this today?" — if no, SKIP\n' +
@@ -102,7 +102,7 @@ export async function runPerplexityScan() {
     return [];
   }
 
-  const signals = topics.filter(t => t.signal_strength >= 7 && t.spread === 'widespread' && t.category !== 'other' && (t.category !== 'sports' || t.signal_strength >= 9));
+  const signals = topics.filter(t => t.signal_strength >= 6 && (t.spread === 'widespread' || t.spread === 'few_sources') && (t.category !== 'sports' || t.signal_strength >= 9));
   console.log(`[Perplexity] ${signals.length} signal(s): ${signals.map(s => s.topic).join(' | ')}`);
   const created_at = new Date().toISOString();
 
