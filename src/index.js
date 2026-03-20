@@ -126,12 +126,11 @@ async function runPerplexityCycle() {
 
   try {
     const signals = await runPerplexityScan();
-    const migrations = getRecentMigrations(24);
 
     entry.signalCount = signals.length;
-    console.log(`[perplexity] ${signals.length} signal(s), ${migrations.length} migration(s)`);
+    console.log(`[perplexity] ${signals.length} signal(s)`);
 
-    const concepts = await generateConcepts(signals, migrations);
+    const concepts = await generateConcepts(signals, []);
     entry.conceptCount = concepts.length;
     console.log(`[perplexity] ${concepts.length} concept(s) generated`);
 

@@ -24,6 +24,16 @@ export function startDashboard() {
   const app = express();
   app.use(express.json());
 
+  // CORS — allow the Vite dev server and any local origin
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
   // Serve built React app if available
   const distPath = join(__dirname, '../../dashboard-ui/dist');
   if (existsSync(distPath)) {
@@ -109,7 +119,7 @@ export function startDashboard() {
   // ── SPA fallback ──────────────────────────────────────────────────────────────
 
   if (existsSync(distPath)) {
-    app.get('*', (_req, res) => res.sendFile(join(distPath, 'index.html')));
+    app.get('/{*splat}', (_req, res) => res.sendFile(join(distPath, 'index.html')));
   }
 
   // ── HTTP + WebSocket ──────────────────────────────────────────────────────────

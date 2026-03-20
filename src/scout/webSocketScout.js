@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import db, { insertToken, getRecentMigrations as dbGetRecentMigrations } from '../database/db.js';
+import db, { insertToken } from '../database/db.js';
 
 const WS_URL = 'wss://pumpportal.fun/api/data';
 const MAX_RECENT = 200;
@@ -151,4 +151,8 @@ export function getRecentTokens() {
   return recentTokens;
 }
 
-export { dbGetRecentMigrations as getRecentMigrations };
+// Returns only tokens that actually migrated since this process started (WebSocket events only)
+// This avoids returning historical DB import data with wrong migrated_at timestamps
+export function getRecentMigrations() {
+  return recentTokens.filter(t => t.migrated === true);
+}

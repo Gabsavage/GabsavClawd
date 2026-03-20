@@ -422,6 +422,10 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
     return true;
   });
   for (const migration of diverseMigrations.slice(0, 3)) {
+    if (!migration.name && !migration.ticker) {
+      console.log(`[conceptGenerator] Flux 2: skipping unnamed migration — no name or ticker`);
+      continue;
+    }
     if (hasRecentConcept(migration.ticker)) {
       console.log(`[conceptGenerator] Flux 2: skipping "${migration.ticker}" — variant already generated recently`);
       continue;

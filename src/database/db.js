@@ -200,6 +200,7 @@ export function searchSimilarTokens(keywords) {
 }
 
 export function hasRecentConcept(topic) {
+  if (!topic || !topic.trim()) return false;
   const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   const row = db
     .prepare(`SELECT 1 FROM concepts WHERE source_signal = ? AND created_at >= ? LIMIT 1`)
