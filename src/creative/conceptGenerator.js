@@ -1,5 +1,5 @@
 import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords } from '../database/db.js';
-import { getTwitterContext, analyzeTokenNarrative } from '../scout/grokScout.js';
+import { analyzeTokenNarrative, analyzeNewsMemePotential } from '../scout/grokScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -173,25 +173,61 @@ async function generateFromSignal(signal) {
     ? similar.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '  (none)';
 
-  const grokQuery = (signal.topic || signal.title) + ' crypto twitter memes reactions';
-  const twitterContext = await getTwitterContext(grokQuery);
+  const memeContext = await analyzeNewsMemePotential(signal);
 
-  const prompt = `TRENDING TOPIC: ${signal.topic}
-WHAT'S HAPPENING: ${signal.summary}
-WHAT MAKES IT SHAREABLE: ${signal.absurdity_angle ?? signal.what_happened ?? 'none'}
-HOW BIG: ${signal.spread ?? 'unknown'} coverage, ${signal.velocity ?? 'unknown'} velocity
-KEYWORDS: ${(signal.keywords || []).join(', ')}
+  let memeContextBlock;
+  if (memeContext) {
+    memeContextBlock = `THE REAL MEME ANGLE (what CT actually cares about, not the headline):
+${memeContext.meme_angle}
 
-TOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES — use their style as inspiration only):
+WHAT CT IS SAYING RIGHT NOW:
+${memeContext.ct_reaction}
+
+THE CHARACTER/MOMENT degens will latch onto:
+${memeContext.key_character_or_moment}
+
+VISUAL POTENTIAL: ${memeContext.visual_potential}
+
+TRENDING WORDS (use these in the name/ticker if possible):
+${memeContext.trending_words.join(', ')}`;
+  } else {
+    memeContextBlock = `CT IS SILENT ON THIS TOPIC.
+Reason from the most absurd or shareable fact: "${signal.what_happened || signal.summary}"
+What single word or moment from this story would a degen immediately understand?`;
+  }
+
+  const existingTokensBlock = `TOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES — use their style as inspiration only):
 ${similarTokensBlock}
 
 TOKENS THAT ALREADY EXIST (DO NOT REUSE ANY OF THESE NAMES):
 ${blacklistBlock}
 
 TOP PERFORMING THEMES RIGHT NOW: ${topThemes.join(', ')}
-TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}
-${twitterContext ? `\nWHAT CRYPTO TWITTER IS SAYING RIGHT NOW:\n${twitterContext}\n\nUse this CT context to find the REAL angle degens care about — not the news headline. Example: if the signal is "Spider-Man trailer breaks records", you do NOT care about the view count. You care about what CT is memeing: the villain, a funny scene, a casting choice, a reaction meme. The token must be about what makes CT REACT, not about what the news reported. If CT has a specific meme, nickname, or joke about this topic, build the token around THAT, not the headline.` : ''}
-Study the naming style of existing tokens above, then create something COMPLETELY NEW for this trending topic.
+TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}`;
+
+  const prompt = `NEWS SIGNAL: ${signal.topic}
+WHAT HAPPENED: ${signal.summary}
+MOST ABSURD/SHAREABLE FACT: ${signal.what_happened || signal.absurdity_angle || 'none'}
+
+${memeContextBlock}
+
+${existingTokensBlock}
+
+STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, state the meme angle.
+Not the news headline — the specific angle that would make a degen laugh or FOMO.
+
+STEP 2 — CREATE THE TOKEN from that meme angle.
+
+EXAMPLE of good vs bad:
+- Signal: "Iran launches missile strike on Israel"
+- BAD token: "Iran Strike" ($MISSILE) — this is a news headline, not a meme
+- GOOD token: "Free Fireworks" ($BOOM) — CT's dark humor angle, funny without geopolitics context
+
+RULES:
+- The TICKER must relate to the meme angle, not the geopolitical event
+- Use TRENDING WORDS from CT if provided — degens search the exact trending word
+- If CT has a specific nickname or joke for this topic, BUILD ON THAT
+- No generic geo-political tickers ($WAR, $NUKE, $IRAN) unless CT is literally using that word as a meme
 
 Return JSON only:
 {
