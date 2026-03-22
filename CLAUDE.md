@@ -64,14 +64,15 @@ src/
 ### Flux 2 — Crypto -> Crypto
 - **Trigger:** immediate start, then every 60 min
 - **Scout:** `getTopMovers(10)` — top 10 tokens by `volume_usd_h1` from DexScreener-enriched data
-- **Generator:** `generateVariants()` — one concept per mover (up to 3), deduplicated by theme
+- **Enrichment:** `analyzeTokenNarrative(token)` (Grok) — per-token structured CT analysis: `why_pumping`, `ct_reaction`, `meme_angle`, `vibe`. Returns `null` if CT is silent.
+- **Generator:** `generateVariants()` — 2-step Claude prompt: state the underlying energy first, then create a new token from a different angle. Up to 3 concepts per cycle, deduplicated by theme.
 - **Dedup:** skips if a variant for that ticker was already generated in the last 2 hours
 
 ### Flux 3 — CT Trend
 - **Trigger:** immediate start, then every 45 min
 - **Scout:** `scanCryptoTwitter()` (Grok) — finds 3-5 rising memes/narratives on CT
 - **Generator:** `generateFromCTTrend()` — up to 2 concepts per cycle
-- **Dedup:** skips trends already generated in the last 6 hours
+- **Dedup:** `hasRecentConceptByKeywords()` — SQL `LIKE` match on `source_signal` using trend keywords (handles dynamic trend names that change between cycles)
 
 ### DexScreener refresh (background)
 - **Trigger:** immediate start, then every 15 min
