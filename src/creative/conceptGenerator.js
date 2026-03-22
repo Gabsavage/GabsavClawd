@@ -227,14 +227,13 @@ async function generateVariants(movers) {
   // One token per call (called with single-item arrays from generateConcepts)
   const migration = validMovers[0];
 
-  const migrationKeywords = validMovers.flatMap(m => {
-    const name = (m.name || '').toLowerCase().split(/\s+/);
-    const ticker = (m.ticker || '').toLowerCase();
-    return [...name, ticker].filter(Boolean);
-  });
+  const migrationKeywords = [
+    ...(migration.name || '').toLowerCase().split(/\s+/),
+    (migration.ticker || '').toLowerCase(),
+  ].filter(Boolean);
   const existingTokens = searchSimilarTokens(migrationKeywords);
   const existingList = existingTokens.length > 0
-    ? '\n\nTOKENS THAT ALREADY EXIST (DO NOT REUSE ANY OF THESE NAMES):\n' +
+    ? 'TOKENS THAT ALREADY EXIST (DO NOT REUSE ANY OF THESE NAMES):\n' +
       existingTokens.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '';
 
@@ -263,7 +262,7 @@ Study the name "${migration.name}" and its theme (${migration.theme || 'unknown'
 
 ${migrationLine}
 
-${narrativeBlock}${existingList}
+${narrativeBlock}${existingList ? '\n\n' + existingList : ''}
 
 STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, state the real energy or story behind this pump. Not the token name — the underlying reason a degen would ape in.
 
@@ -297,7 +296,7 @@ Return JSON only:
 }`;
 
   const concept = await callClaude(prompt);
-  return { ...concept, flux: '2', source_migrations: validMovers.map((t) => t.ticker).join(', ') };
+  return { ...concept, flux: '2', source_migrations: migration.ticker };
 }
 
 // ---------------------------------------------------------------------------
