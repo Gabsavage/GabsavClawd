@@ -206,6 +206,83 @@ Return a JSON array only.`
   }
 }
 
+export async function analyzeNewsMemePotential(signal) {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[GrokScout] XAI_API_KEY not set — skipping news meme potential analysis.');
+    return null;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const res = await fetch(GROK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-4-1-fast-non-reasoning',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Crypto Twitter analyst. Search X/Twitter to find out if and how the crypto community is reacting to real-world news topics. Report raw CT energy, slang, memes, and the specific angle degens are taking. Always respond in English with valid JSON only, no markdown.',
+          },
+          {
+            role: 'user',
+            content: `Today is ${today}. This topic is in the news right now: "${signal.topic}"
+
+What happened: ${signal.summary}
+
+Search X/Twitter and CT. Is the crypto community talking about this? What angle are they taking? Is there already a meme emerging?
+
+Return JSON:
+{
+  "meme_angle": string (the specific angle CT is exploiting — NOT the headline, the joke/meme/absurd take),
+  "ct_reaction": string (2-3 sentences — what people are actually posting, use their exact slang),
+  "key_character_or_moment": string (the person/moment/thing degens would latch onto),
+  "visual_potential": string (1 sentence — what would work as a pump.fun thumbnail),
+  "trending_words": string[] (3-5 exact words or phrases CT is using for this topic)
+}
+
+If CT is completely silent on this topic (not mentioned at all), return: {"ct_silent": true}`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[GrokScout] analyzeNewsMemePotential error ${res.status}: ${text}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content ?? '';
+    const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      console.error('[GrokScout] analyzeNewsMemePotential JSON parse failed. Raw:', content.slice(0, 300));
+      return null;
+    }
+
+    if (result.ct_silent) {
+      console.log(`[GrokScout] CT silent on news topic "${signal.topic}"`);
+      return null;
+    }
+
+    console.log(`[GrokScout] Meme potential for "${signal.topic}": ${result.meme_angle?.slice(0, 80)}...`);
+    return result;
+
+  } catch (err) {
+    console.error('[GrokScout] analyzeNewsMemePotential failed:', err.message);
+    return null;
+  }
+}
+
 // Standalone test
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const query = process.argv[2] || 'Trump Iran';
