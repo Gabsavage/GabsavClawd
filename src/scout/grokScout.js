@@ -99,14 +99,21 @@ If CT is completely silent on this token (not mentioned anywhere), return: {"ct_
     });
 
     if (!res.ok) {
-      console.error(`[GrokScout] analyzeTokenNarrative error ${res.status}`);
+      const text = await res.text();
+      console.error(`[GrokScout] analyzeTokenNarrative error ${res.status}: ${text}`);
       return null;
     }
 
     const data = await res.json();
     const raw = data.choices?.[0]?.message?.content ?? '';
     const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    const result = JSON.parse(content);
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      console.error('[GrokScout] analyzeTokenNarrative JSON parse failed. Raw:', content.slice(0, 300));
+      return null;
+    }
 
     if (result.ct_silent) {
       console.log(`[GrokScout] CT silent on "${token.name}" ($${token.ticker})`);
