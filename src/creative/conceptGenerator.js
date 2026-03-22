@@ -189,10 +189,10 @@ ${memeContext.key_character_or_moment}
 VISUAL POTENTIAL: ${memeContext.visual_potential}
 
 TRENDING WORDS (use these in the name/ticker if possible):
-${memeContext.trending_words.join(', ')}`;
+${(memeContext.trending_words || []).join(', ')}`;
   } else {
     memeContextBlock = `CT IS SILENT ON THIS TOPIC.
-Reason from the most absurd or shareable fact: "${signal.what_happened || signal.summary}"
+Reason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"
 What single word or moment from this story would a degen immediately understand?`;
   }
 
