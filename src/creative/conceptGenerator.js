@@ -516,8 +516,8 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
 
   const concepts = await runWithConcurrency(tasks, CONCURRENCY);
 
-  // Flatten (generateVariants returns a single object now, not an array)
-  const flat = concepts.flat();
+  // Flatten and filter nulls (individual generators return null on Claude failure)
+  const flat = concepts.flat().filter(Boolean);
 
   // Save to DB
   const now = new Date().toISOString();
