@@ -1,5 +1,6 @@
 import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords } from '../database/db.js';
 import { analyzeTokenNarrative, analyzeNewsMemePotential } from '../scout/grokScout.js';
+import { getTopMovers } from '../scout/dexScreenerScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -407,44 +408,44 @@ async function runWithConcurrency(tasks, limit) {
 async function generateFromCTTrend(trend) {
   if (!trend) return [];
 
+  const movers = getTopMovers(5);
   const similar = searchSimilarTokens(trend.keywords || []);
-  const recentMatches = similar;
-  let pumpfunTickers = recentMatches.slice(0, 5).map(t => `$${t.ticker}`).join(', ');
 
-  if (!pumpfunTickers) {
-    const recentPumpfun = db.prepare(
-      `SELECT ticker FROM tokens WHERE source = 'pumpportal' AND created_at >= ? ORDER BY volume_sol DESC LIMIT 10`
-    ).all(new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString());
+  const moversBlock = movers.length > 0
+    ? 'WHAT\'S PUMPING ON PUMP.FUN RIGHT NOW (market context — what degens are buying):\n' +
+      movers.map(m => `  - "${m.name}" ($${m.ticker}) | $${m.volume_usd_h1?.toFixed(0) || 0}/h vol | theme: ${m.theme || 'unknown'}`).join('\n')
+    : 'WHAT\'S PUMPING ON PUMP.FUN RIGHT NOW:\n  (no data yet — DexScreener refresh pending)';
 
-    const keywords = (trend.keywords || []).map(k => k.toLowerCase());
-    const matches = recentPumpfun.filter(t =>
-      keywords.some(k => (t.ticker || '').toLowerCase().includes(k))
-    );
-
-    if (matches.length > 0) {
-      pumpfunTickers = matches.map(t => `$${t.ticker}`).join(', ');
-    }
-  }
-  const existingList = similar.length > 0
-    ? '\nTOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES):\n' +
+  const blacklistBlock = similar.length > 0
+    ? 'TOKENS THAT ALREADY EXIST ON THIS THEME (DO NOT COPY THESE NAMES):\n' +
       similar.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '';
 
-  const prompt = `A meme/narrative is RISING on Crypto Twitter right now:
-
-TREND: ${trend.trend}
+  const prompt = `CT TREND: ${trend.trend}
 WHAT CT IS SAYING: ${trend.what_ct_says}
 VIBE: ${trend.vibe}
 MEME POTENTIAL: ${trend.meme_potential}
-${existingList}
 
-Create a pump.fun token that rides this CT wave. The token should feel like it was made BY a degen who saw this trend 5 minutes ago — not by a marketing team.
+${moversBlock}${blacklistBlock ? '\n\n' + blacklistBlock : ''}
+
+STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, what is the specific hook
+from this CT trend that would make a degen APE IN immediately?
+Not the trend name — the exact joke, energy, or moment CT is reacting to.
+Consider what's pumping right now — is there an angle that bridges the CT wave
+with what the market is already buying?
+
+STEP 2 — CREATE THE TOKEN from that hook.
+
+EXAMPLE of good vs bad:
+- CT trend: "we're so back" wave sweeping CT, full degen optimism
+- BAD token: "We're So Back" ($BACK) — too literal, CT already has 10 of these
+- GOOD token: "Cope Harder" ($COPE) — the ironic counter-energy CT actually memes
 
 RULES:
-- The name should capture the EXACT energy CT has about this trend
-- Use the slang and language from what CT is saying
-- If CT already has a specific joke or nickname, build on it
-- The token must be funny ON ITS OWN even without knowing the CT context
+- Use the EXACT slang from WHAT CT IS SAYING — degens search these exact words
+- If CT has a specific joke or nickname, BUILD ON THAT, don't abstract it
+- The token must be funny ON ITS OWN without knowing the CT context
+- TICKER: real word or recognizable name, not an abbreviation
 
 Return JSON only:
 {
@@ -457,7 +458,8 @@ Return JSON only:
 }`;
 
   const concept = await callClaude(prompt);
-  return concept ? { ...concept, flux: '3', source_signal: trend.trend, source_migrations: pumpfunTickers || 'CT trend' } : null;
+  const moverTickers = movers.length > 0 ? movers.map(m => `$${m.ticker}`).join(', ') : null;
+  return concept ? { ...concept, flux: '3', source_signal: trend.trend, source_migrations: moverTickers } : null;
 }
 
 // ---------------------------------------------------------------------------
