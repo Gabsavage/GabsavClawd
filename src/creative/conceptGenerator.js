@@ -1,5 +1,5 @@
 import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords } from '../database/db.js';
-import { getTwitterContext, analyzeTokenNarrative, scanCryptoTwitter } from '../scout/grokScout.js';
+import { getTwitterContext, analyzeTokenNarrative } from '../scout/grokScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
