@@ -1,4 +1,4 @@
-import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended } from '../database/db.js';
+import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords } from '../database/db.js';
 import { getTwitterContext, analyzeTokenNarrative, scanCryptoTwitter } from '../scout/grokScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -466,10 +466,11 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
     tasks.push(() => generateVariants([migration]));
   }
 
-  // Flux 3: up to 2 concepts from CT trends (Grok-sourced)
-  for (const trend of ctTrends.slice(0, 2)) {
-    if (hasRecentConceptExtended(trend.trend)) {
-      console.log(`[conceptGenerator] Flux 3: skipping "${trend.trend}" — already generated recently`);
+  // Flux 3: up to 3 concepts from CT trends (Grok-sourced)
+  for (const trend of ctTrends.slice(0, 3)) {
+    const trendKeywords = trend.keywords?.length ? trend.keywords : [trend.trend];
+    if (hasRecentConceptByKeywords(trendKeywords)) {
+      console.log(`[conceptGenerator] Flux 3: skipping "${trend.trend}" — keywords already covered recently`);
       continue;
     }
     tasks.push(() => generateFromCTTrend(trend));

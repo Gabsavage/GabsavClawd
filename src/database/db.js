@@ -262,6 +262,17 @@ export function hasRecentConceptExtended(topic, hours = 6) {
   return !!row;
 }
 
+export function hasRecentConceptByKeywords(keywords, hours = 6) {
+  if (!keywords || keywords.length === 0) return false;
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const conditions = keywords.map(() => 'source_signal LIKE ?').join(' OR ');
+  const params = [...keywords.map(k => `%${k.toLowerCase()}%`), since];
+  const row = db
+    .prepare(`SELECT id FROM concepts WHERE (${conditions}) AND created_at >= ? LIMIT 1`)
+    .get(...params);
+  return !!row;
+}
+
 // --- Signals ---
 
 export function insertSignal(signal) {
