@@ -11,6 +11,7 @@ const SYSTEM_MESSAGE =
   '- Social platforms: X/Twitter trending, Reddit front page, TikTok trending\n' +
   '- Internet culture: Know Your Meme, YouTube trending\n' +
   '- Crypto media: CoinDesk, The Block, Decrypt — ONLY for major drama (hacks, rug pulls, regulatory bombs), NOT price action\n\n' +
+  'VIRAL INTERNET RULE: A viral Reddit thread or absurd TikTok moment with strong engagement counts AS MUCH as a Reuters wire — do not under-score it because it comes from a single platform. Short-lived absurd moments are VALUABLE. Report them.\n\n' +
   'PRIORITY ORDER (equal weight — you MUST cover multiple categories, not just the top one):\n' +
   '1. Viral content & internet culture — memes, TikTok trends, viral moments, anything breaking through on multiple platforms\n' +
   '2. Entertainment — movie trailers, celebrity drama, gaming events, music releases, TV show moments\n' +
@@ -53,6 +54,7 @@ const USER_MESSAGE =
   '- 5-6: Real but limited — a few outlets, not yet mainstream\n' +
   '- Below 5: Do not include\n\n' +
   'FRESHNESS: Only include topics whose most recent source is from the last 48 hours. If you cannot confirm the date, skip it.\n\n' +
+  'For the \'internet\' category: viral Reddit posts, TikTok trends, absurd celebrity moments, animal videos with millions of views, meme formats gaining traction — these qualify even with \'few_sources\' spread if they have high social velocity.\n\n' +
   'Return a JSON array only.';
 
 export async function runPerplexityScan() {
@@ -102,7 +104,7 @@ export async function runPerplexityScan() {
     return [];
   }
 
-  const signals = topics.filter(t => t.signal_strength >= 6 && (t.spread === 'widespread' || t.spread === 'few_sources') && (t.category !== 'sports' || t.signal_strength >= 9));
+  const signals = topics.filter(t => t.signal_strength >= 5 && (t.spread === 'widespread' || t.spread === 'few_sources') && (t.category !== 'sports' || t.signal_strength >= 9));
   console.log(`[Perplexity] ${signals.length} signal(s): ${signals.map(s => s.topic).join(' | ')}`);
   const created_at = new Date().toISOString();
 
@@ -148,9 +150,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('[Perplexity] Running standalone scan...');
   const signals = await runPerplexityScan();
   if (signals.length === 0) {
-    console.log('[Perplexity] No signals found (signal_strength >= 6) or scan skipped.');
+    console.log('[Perplexity] No signals found (signal_strength >= 5) or scan skipped.');
   } else {
-    console.log(`[Perplexity] ${signals.length} signal(s) with signal_strength >= 6:\n`);
+    console.log(`[Perplexity] ${signals.length} signal(s) with signal_strength >= 5:\n`);
     for (const s of signals) {
       console.log(`  [${s.signal_strength}/10] ${s.topic} (${s.category}) [${s.velocity}] [${s.spread}]`);
       console.log(`    ${s.summary}`);
