@@ -47,7 +47,7 @@ function pushRecent(token) {
 
 function handleNewToken(data) {
   const marketCap = data.marketCapSol || 0;
-  if (marketCap < 30) return; // Ignore tokens under 30 SOL market cap
+  if (marketCap < 300) return; // Ignore tokens under 300 SOL market cap
 
   console.log(`[WebSocket] New token (${marketCap.toFixed(0)} SOL mcap): ${data.name} ($${data.symbol})`);
   const name = data.name || '';
