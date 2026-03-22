@@ -55,6 +55,73 @@ Keep it under 200 words. Raw CT energy, not analyst report.`
   }
 }
 
+export async function analyzeTokenNarrative(token) {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[GrokScout] XAI_API_KEY not set — skipping token narrative analysis.');
+    return null;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const res = await fetch(GROK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-4-1-fast-non-reasoning',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Crypto Twitter analyst. Search X/Twitter and pump.fun community chatter to understand WHY specific tokens are pumping. Report raw CT energy, slang, and memes. Always respond in English with valid JSON only, no markdown.',
+          },
+          {
+            role: 'user',
+            content: `Today is ${today}. This token is pumping on pump.fun right now: "${token.name}" ($${token.ticker}) — +${token.price_change_h1 || 0}% in the last hour, $${token.volume_usd_h1 || 0} volume.
+
+Search X/Twitter and CT. Find WHY it's pumping and what CT is saying.
+
+Return JSON:
+{
+  "why_pumping": string (1-2 sentences — the real event, meme, or narrative driving the pump, or "pure hype / no clear reason"),
+  "ct_reaction": string (2-3 sentences — what people are actually posting, use their exact slang),
+  "meme_angle": string (1 sentence — the specific visual or concept CT is turning into a meme),
+  "vibe": "bullish" | "ironic" | "chaotic" | "mocking" | "hyping"
+}
+
+If CT is completely silent on this token (not mentioned anywhere), return: {"ct_silent": true}`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(`[GrokScout] analyzeTokenNarrative error ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content ?? '';
+    const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const result = JSON.parse(content);
+
+    if (result.ct_silent) {
+      console.log(`[GrokScout] CT silent on "${token.name}" ($${token.ticker})`);
+      return null;
+    }
+
+    console.log(`[GrokScout] Narrative for "${token.name}": ${result.why_pumping?.slice(0, 80)}...`);
+    return result;
+
+  } catch (err) {
+    console.error('[GrokScout] analyzeTokenNarrative failed:', err.message);
+    return null;
+  }
+}
+
 export async function scanCryptoTwitter() {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
