@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { startWebSocket, getRecentMigrations } from './scout/webSocketScout.js';
+import { startWebSocket } from './scout/webSocketScout.js';
 import { runPerplexityScan } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
 import { refreshTokenData, getTopMovers } from './scout/dexScreenerScout.js';
@@ -127,12 +127,11 @@ async function runPerplexityCycle() {
 
   try {
     const signals = await runPerplexityScan();
-    const migrations = getRecentMigrations(24);
 
     entry.signalCount = signals.length;
-    console.log(`[perplexity] ${signals.length} signal(s), ${migrations.length} migration(s)`);
+    console.log(`[perplexity] ${signals.length} signal(s)`);
 
-    const concepts = await generateConcepts(signals, migrations);
+    const concepts = await generateConcepts(signals, []);
     entry.conceptCount = concepts.length;
     console.log(`[perplexity] ${concepts.length} concept(s) generated`);
 
@@ -235,13 +234,12 @@ async function main() {
   startBot();
   startWebSocket();
 
-  // TEMP: disabled — Flux 1 / Perplexity cycle disabled for testing
-  // await runPerplexityCycle();
-  // setInterval(() => {
-  //   runPerplexityCycle().catch((err) =>
-  //     console.error(`[perplexity] Unhandled error: ${err.message}`)
-  //   );
-  // }, PERPLEXITY_INTERVAL_MS);
+  await runPerplexityCycle();
+  setInterval(() => {
+    runPerplexityCycle().catch((err) =>
+      console.error(`[perplexity] Unhandled error: ${err.message}`)
+    );
+  }, PERPLEXITY_INTERVAL_MS);
 
   // TEMP: modified — Flux 2 launches immediately (offset removed)
   runFlux2Cycle().catch((err) =>
@@ -272,7 +270,7 @@ async function main() {
   runDexRefresh();
   setInterval(runDexRefresh, DEX_REFRESH_MS);
 
-  console.log('[main] Flux 1: DISABLED (TEMP)');
+  console.log('[main] Flux 1 cycle: every 30 min, immediate start');
   console.log('[main] Flux 2 cycle: every 60 min, immediate start');
   console.log('[main] Flux 3 cycle: every 45 min, immediate start');
   console.log('[main] DexScreener refresh: every 15 min, immediate start');
