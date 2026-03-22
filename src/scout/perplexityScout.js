@@ -148,9 +148,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('[Perplexity] Running standalone scan...');
   const signals = await runPerplexityScan();
   if (signals.length === 0) {
-    console.log('[Perplexity] No signals found (signal_strength >= 5) or scan skipped.');
+    console.log('[Perplexity] No signals found (signal_strength >= 6) or scan skipped.');
   } else {
-    console.log(`[Perplexity] ${signals.length} signal(s) with signal_strength >= 5:\n`);
+    console.log(`[Perplexity] ${signals.length} signal(s) with signal_strength >= 6:\n`);
     for (const s of signals) {
       console.log(`  [${s.signal_strength}/10] ${s.topic} (${s.category}) [${s.velocity}] [${s.spread}]`);
       console.log(`    ${s.summary}`);

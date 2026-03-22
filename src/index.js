@@ -2,8 +2,8 @@ import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { startWebSocket, getRecentTokens, getRecentMigrations } from './scout/webSocketScout.js';
-import { runPerplexityScan, getLatestSignals } from './scout/perplexityScout.js';
+import { startWebSocket, getRecentMigrations } from './scout/webSocketScout.js';
+import { runPerplexityScan } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
 import { refreshTokenData, getTopMovers } from './scout/dexScreenerScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
