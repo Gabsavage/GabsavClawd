@@ -1,6 +1,5 @@
 import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended } from '../database/db.js';
-import { getRecentTokens } from '../scout/webSocketScout.js';
-import { getTwitterContext, scanCryptoTwitter } from '../scout/grokScout.js';
+import { getTwitterContext, analyzeTokenNarrative, scanCryptoTwitter } from '../scout/grokScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -222,13 +221,11 @@ Return JSON only:
 async function generateVariants(movers) {
   if (!movers || movers.length === 0) return [];
 
-  // Filter out movers with empty name/ticker
   const validMovers = movers.filter(m => m.name && m.ticker);
   if (validMovers.length === 0) return [];
 
-  const migrationList = validMovers
-    .map((t) => `  - "${t.name}" ($${t.ticker}) | vol $${t.volume_usd_h1 || 0}/h | +${t.price_change_h1 || 0}% | theme: ${t.theme || 'unknown'}`)
-    .join('\n');
+  // One token per call (called with single-item arrays from generateConcepts)
+  const migration = validMovers[0];
 
   const migrationKeywords = validMovers.flatMap(m => {
     const name = (m.name || '').toLowerCase().split(/\s+/);
@@ -241,38 +238,53 @@ async function generateVariants(movers) {
       existingTokens.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
     : '';
 
-  const migrationQuery = validMovers.map(m => m.name || m.ticker).join(' OR ') + ' crypto twitter memes';
-  const twitterContext = await getTwitterContext(migrationQuery);
+  // Structured CT narrative — replaces generic getTwitterContext
+  const narrative = await analyzeTokenNarrative(migration);
 
-  const prompt = `These tokens are pumping HARD right now on pump.fun (top volume in the last hour):
+  // Build the narrative block for the prompt
+  let narrativeBlock;
+  if (narrative) {
+    narrativeBlock = `WHY IT'S PUMPING: ${narrative.why_pumping}
 
-${migrationList}${twitterContext ? `\n\nWHAT CRYPTO TWITTER IS SAYING RIGHT NOW:\n${twitterContext}\n\nUse this CT context. If CT already has memes or slang about this, lean into it instead of inventing from scratch.` : ''}${existingList}
+WHAT CT IS SAYING:
+${narrative.ct_reaction}
+
+MEME ANGLE CT IS WORKING WITH: ${narrative.meme_angle}
+
+VIBE: ${narrative.vibe}`;
+  } else {
+    narrativeBlock = `CT IS SILENT ON THIS TOKEN.
+Study the name "${migration.name}" and its theme (${migration.theme || 'unknown'}). Make your best guess at the underlying energy or story. What event, meme, or feeling could explain why degens are aping in? Build on THAT energy.`;
+  }
+
+  const migrationLine = `"${migration.name}" ($${migration.ticker}) | vol $${migration.volume_usd_h1 || 0}/h | +${migration.price_change_h1 || 0}% | theme: ${migration.theme || 'unknown'}`;
+
+  const prompt = `This token is pumping HARD on pump.fun right now:
+
+${migrationLine}
+
+${narrativeBlock}${existingList}
+
+STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, state the real energy or story behind this pump. Not the token name — the underlying reason a degen would ape in.
+
+STEP 2 — CREATE A NEW TOKEN that rides that same energy from a completely different angle. Do NOT riff on the token's name. Find what made it pump, then express that with something totally fresh.
+
+CONCRETE EXAMPLE of how to think:
+- Token pumping: "Hello World" — WHY: pump.fun's site showed a "Hello World" error when it went down. Degens made a token about the crash.
+- Good new token: "Goodbye World" ($CRASH) — rides the site-going-down energy from the opposite angle. NOT "Hello Again" or "World Error" — different angle, same story.
+- Bad new token: "Dev Error" ($RUGGED) — $RUGGED is a generic crypto term with no real connection to the story. The ticker must be as specific as the name.
 
 RULES:
-- Do NOT reuse or remix the token's name. Create something COMPLETELY DIFFERENT.
-- Find what ENERGY or THEME made it pump, then express that energy with a totally new angle.
-- Example: if "psyopcat" migrated, the energy is "conspiracy + animal". A good variant: "Tinfoil Hamster" ($TINFOIL), NOT "Counter Psyop" or "Psyop Dog".
-- Follow these proven pump.fun naming patterns:
-  1. ICONIC WORD — one killer word that captures everything (ex: "Hormuz", "Geppetto")
-  2. ABSURD MASHUP — two concepts that shouldn't go together (ex: "Helicopter Dog", "Trump Vodka")
-  3. SHITPOST PHRASE — sounds like a drunk tweet (ex: "ah shit here we go again")
-  4. MEME CREATURE — theme + animal/character (ex: "NATO's Dog", "snow pepe")
-- Ticker must be a REAL word, never an abbreviation. Must be immediately obvious what it means.
-- Description: one sentence, shitpost energy, sounds like a drunk tweet not a CNN headline.
+- The TICKER must be as specific and funny as the NAME — no generic crypto words ($RUGGED, $APE, $MOON, $GG) unless they are genuinely the best fit for THIS specific story.
+- Ticker must be a real word or recognizable name that makes someone smirk independently of reading the full name.
+- Follow proven pump.fun patterns: Iconic Word | Absurd Mashup | Shitpost Phrase | Meme Creature.
+- Description: 1 sentence, shitpost energy.
+- Narrative: 1 sentence, why a degen buys this.
 
-QUALITY CHECK — Before returning, verify:
-1. Could someone who has never heard of crypto laugh at this name? If no, try again.
-2. Can you IMMEDIATELY picture what the thumbnail image would look like? If no, the concept is too abstract — make it more visual/concrete.
-3. Is the ticker just the main word from the name repeated? If yes, find a cleverer ticker that a degen would actually type.
-6. Is your ticker just one of the words from the token name? If yes, that's LAZY. The ticker must add something — a different angle, a punchline, an inside joke.
-   - BAD: "Crypto Daddy" → $DADDY (just the last word)
-   - BAD: "My Bot Farms Yours" → $FARMS (just a word from the name)
-   - GOOD: "Crypto Daddy" → $PAPI (different language twist, same energy)
-   - GOOD: "My Bot Farms Yours" → $BOTWAR (compounds the concept)
-   - GOOD: "General Rektami" → $REKT (captures the joke, not just a word from the name)
-   The ticker should make someone smirk INDEPENDENTLY of reading the full name.
-4. If the migrated token has an obvious mirror/opposite/sequel (e.g. $HERE → $THERE, $UP → $DOWN, $DOG → $CAT), USE IT instead of inventing something unrelated.
-5. Did you take a trending concept and add an unnecessary creative twist? If the migrated token is about "Claw" and your token name doesn't contain "Claw", you went too far. Dial it back. The trending word must appear in the token name.
+QUALITY CHECK before returning:
+1. Could someone who has never heard of crypto laugh at this? If no, try again.
+2. Is the ticker a generic crypto word with no specific tie to THIS story? If yes, find something more specific.
+3. Does the ticker add a new angle or punchline beyond the name? If it just repeats the name's main word, that's lazy.
 
 Return JSON only:
 {
