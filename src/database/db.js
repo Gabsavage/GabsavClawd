@@ -1,324 +1,264 @@
-import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { mkdirSync } from 'fs';
+import { createClient } from '@libsql/client';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DB_PATH = join(__dirname, 'data', 'pumpfun.db');
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-mkdirSync(join(__dirname, 'data'), { recursive: true });
+export async function initDb() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS signals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      source TEXT,
+      score REAL,
+      reasoning TEXT,
+      momentum TEXT,
+      why_it_pumps TEXT,
+      sources TEXT,
+      created_at TEXT,
+      used INTEGER DEFAULT 0,
+      signal_strength INTEGER,
+      spread TEXT,
+      velocity TEXT,
+      shelf_life TEXT,
+      absurdity_angle TEXT,
+      source_date TEXT
+    )
+  `);
 
-const db = new Database(DB_PATH);
-
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    ticker TEXT,
-    description TEXT,
-    created_at TEXT,
-    migrated_at TEXT,
-    volume_sol REAL DEFAULT 0,
-    trade_count INTEGER DEFAULT 0,
-    theme TEXT,
-    format TEXT,
-    keywords TEXT,
-    migrated INTEGER DEFAULT 0,
-    source TEXT,
-    raw_data TEXT,
-    UNIQUE(name, ticker)
-  );
-
-  CREATE TABLE IF NOT EXISTS signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    source TEXT,
-    score REAL,
-    reasoning TEXT,
-    momentum TEXT,
-    why_it_pumps TEXT,
-    sources TEXT,
-    created_at TEXT,
-    used INTEGER DEFAULT 0,
-    signal_strength INTEGER,
-    spread TEXT,
-    velocity TEXT,
-    shelf_life TEXT,
-    absurdity_angle TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS concepts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    signal_id INTEGER,
-    name TEXT,
-    ticker TEXT,
-    description TEXT,
-    narrative TEXT,
-    image_prompt TEXT,
-    flux TEXT,
-    telegram_status TEXT DEFAULT 'pending',
-    created_at TEXT,
-    feedback_notes TEXT
-  );
-`);
-
-// Migrate: rebuild tokens table if still using old ticker UNIQUE constraint
-{
-  const info = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='tokens'`).get();
-  if (info && /ticker TEXT UNIQUE/i.test(info.sql)) {
-    db.exec(`
-      ALTER TABLE tokens RENAME TO tokens_old;
-      CREATE TABLE tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        ticker TEXT,
-        description TEXT,
-        created_at TEXT,
-        migrated_at TEXT,
-        volume_sol REAL DEFAULT 0,
-        trade_count INTEGER DEFAULT 0,
-        theme TEXT,
-        format TEXT,
-        keywords TEXT,
-        migrated INTEGER DEFAULT 0,
-        source TEXT,
-        raw_data TEXT,
-        UNIQUE(name, ticker)
-      );
-      INSERT OR IGNORE INTO tokens SELECT * FROM tokens_old;
-      DROP TABLE tokens_old;
-    `);
-    console.log('[DB] Migrated tokens table: ticker UNIQUE → UNIQUE(name, ticker)');
-  }
-}
-
-// Migrate: add new columns to tokens if they don't exist yet
-try { db.exec(`ALTER TABLE tokens ADD COLUMN mint TEXT`); } catch {}
-for (const col of [
-  'volume_usd_h1 REAL DEFAULT 0',
-  'volume_usd_h24 REAL DEFAULT 0',
-  'price_change_h1 REAL DEFAULT 0',
-  'price_change_h24 REAL DEFAULT 0',
-  'buys_h24 INTEGER DEFAULT 0',
-  'sells_h24 INTEGER DEFAULT 0',
-  'price_usd TEXT',
-  'last_dex_update TEXT',
-]) {
-  try { db.exec(`ALTER TABLE tokens ADD COLUMN ${col}`); } catch {}
-}
-
-// Token volume history table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS token_volume_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mint TEXT NOT NULL,
-    volume_usd_h1 REAL,
-    price_change_h1 REAL,
-    price_usd TEXT,
-    recorded_at TEXT NOT NULL
-  );
-`);
-
-// Migrate: add columns to concepts if they don't exist yet
-for (const col of ['sources TEXT', 'source_date TEXT', 'source_signal TEXT']) {
-  try { db.exec(`ALTER TABLE concepts ADD COLUMN ${col}`); } catch {}
-}
-
-// Migrate: add new columns to signals if they don't exist yet
-for (const col of [
-  'momentum TEXT',
-  'why_it_pumps TEXT',
-  'sources TEXT',
-  'signal_strength INTEGER',
-  'spread TEXT',
-  'velocity TEXT',
-  'shelf_life TEXT',
-  'absurdity_angle TEXT',
-  'source_date TEXT',
-]) {
-  try {
-    db.exec(`ALTER TABLE signals ADD COLUMN ${col}`);
-  } catch {
-    // column already exists — ignore
-  }
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS concepts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      signal_id INTEGER,
+      name TEXT,
+      ticker TEXT,
+      description TEXT,
+      narrative TEXT,
+      image_prompt TEXT,
+      flux TEXT,
+      telegram_status TEXT DEFAULT 'pending',
+      created_at TEXT,
+      feedback_notes TEXT,
+      sources TEXT,
+      source_date TEXT,
+      source_signal TEXT
+    )
+  `);
 }
 
 // --- Tokens ---
 
-export function insertToken(token) {
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO tokens
+export async function insertToken(token) {
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO tokens
       (name, ticker, description, created_at, migrated_at, volume_sol, trade_count,
        theme, format, keywords, migrated, source, raw_data, mint)
-    VALUES
-      (@name, @ticker, @description, @created_at, @migrated_at, @volume_sol, @trade_count,
-       @theme, @format, @keywords, @migrated, @source, @raw_data, @mint)
-  `);
-  return stmt.run(token);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      token.name, token.ticker, token.description, token.created_at,
+      token.migrated_at, token.volume_sol, token.trade_count,
+      token.theme, token.format, token.keywords, token.migrated,
+      token.source, token.raw_data, token.mint,
+    ],
+  });
 }
 
-export function updateTokenVolume(ticker, volume_sol, trade_count) {
-  const stmt = db.prepare(`
-    UPDATE tokens SET volume_sol = @volume_sol, trade_count = @trade_count
-    WHERE ticker = @ticker
-  `);
-  return stmt.run({ ticker, volume_sol, trade_count });
+export async function updateTokenVolume(ticker, volume_sol, trade_count) {
+  await db.execute({
+    sql: `UPDATE tokens SET volume_sol = ?, trade_count = ? WHERE ticker = ?`,
+    args: [volume_sol, trade_count, ticker],
+  });
 }
 
-export function updateTokenDexData(mint, data) {
-  db.prepare(`UPDATE tokens SET
-    volume_usd_h1 = ?, volume_usd_h24 = ?,
-    price_change_h1 = ?, price_change_h24 = ?,
-    buys_h24 = ?, sells_h24 = ?,
-    price_usd = ?, last_dex_update = ?
-    WHERE mint = ?`
-  ).run(
-    data.volumeH1, data.volumeH24,
-    data.priceChangeH1, data.priceChangeH24,
-    data.buysH24, data.sellsH24,
-    data.priceUsd, new Date().toISOString(),
-    mint
-  );
+export async function updateTokenDexData(mint, data) {
+  await db.execute({
+    sql: `UPDATE tokens SET
+      volume_usd_h1 = ?, volume_usd_h24 = ?,
+      price_change_h1 = ?, price_change_h24 = ?,
+      buys_h24 = ?, sells_h24 = ?,
+      price_usd = ?, last_dex_update = ?
+    WHERE mint = ?`,
+    args: [
+      data.volumeH1, data.volumeH24,
+      data.priceChangeH1, data.priceChangeH24,
+      data.buysH24, data.sellsH24,
+      data.priceUsd, new Date().toISOString(),
+      mint,
+    ],
+  });
 
-  db.prepare(`INSERT INTO token_volume_history (mint, volume_usd_h1, price_change_h1, price_usd, recorded_at)
-    VALUES (?, ?, ?, ?, ?)`)
-  .run(mint, data.volumeH1, data.priceChangeH1, data.priceUsd, new Date().toISOString());
+  await db.execute({
+    sql: `INSERT INTO token_volume_history (mint, volume_usd_h1, price_change_h1, price_usd, recorded_at)
+      VALUES (?, ?, ?, ?, ?)`,
+    args: [mint, data.volumeH1, data.priceChangeH1, data.priceUsd, new Date().toISOString()],
+  });
 }
 
-export function getTopThemes(limit = 10) {
-  const stmt = db.prepare(`
-    SELECT theme, COUNT(*) as count, SUM(volume_sol) as total_volume
-    FROM tokens
-    WHERE theme IS NOT NULL
-    GROUP BY theme
-    ORDER BY total_volume DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit);
+export async function getTopThemes(limit = 10) {
+  const result = await db.execute({
+    sql: `SELECT theme, COUNT(*) as count, SUM(volume_sol) as total_volume
+      FROM tokens
+      WHERE theme IS NOT NULL
+      GROUP BY theme
+      ORDER BY total_volume DESC
+      LIMIT ?`,
+    args: [limit],
+  });
+  return result.rows;
 }
 
-export function getTopFormats(limit = 10) {
-  const stmt = db.prepare(`
-    SELECT format, COUNT(*) as count, SUM(volume_sol) as total_volume
-    FROM tokens
-    WHERE format IS NOT NULL
-    GROUP BY format
-    ORDER BY total_volume DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit);
+export async function getTopFormats(limit = 10) {
+  const result = await db.execute({
+    sql: `SELECT format, COUNT(*) as count, SUM(volume_sol) as total_volume
+      FROM tokens
+      WHERE format IS NOT NULL
+      GROUP BY format
+      ORDER BY total_volume DESC
+      LIMIT ?`,
+    args: [limit],
+  });
+  return result.rows;
 }
 
-export function getRecentMigrations(hours = 24) {
-  const stmt = db.prepare(`
-    SELECT * FROM tokens
-    WHERE migrated = 1
-      AND migrated_at > datetime('now', '-' || ? || ' hours')
-    ORDER BY migrated_at DESC
-  `);
-  return stmt.all(hours);
+export async function getRecentMigrations(hours = 24) {
+  const result = await db.execute({
+    sql: `SELECT * FROM tokens
+      WHERE migrated = 1
+        AND migrated_at > datetime('now', '-' || ? || ' hours')
+      ORDER BY migrated_at DESC`,
+    args: [hours],
+  });
+  return result.rows;
 }
 
-export function getTokensByTheme(theme, limit = 20) {
-  const stmt = db.prepare(`
-    SELECT * FROM tokens
-    WHERE theme = ?
-    ORDER BY volume_sol DESC
-    LIMIT ?
-  `);
-  return stmt.all(theme, limit);
+export async function getTokensByTheme(theme, limit = 20) {
+  const result = await db.execute({
+    sql: `SELECT * FROM tokens WHERE theme = ? ORDER BY volume_sol DESC LIMIT ?`,
+    args: [theme, limit],
+  });
+  return result.rows;
 }
 
-export function searchSimilarTokens(keywords) {
+export async function searchSimilarTokens(keywords) {
   if (!keywords || keywords.length === 0) return [];
-
   const conditions = keywords.map(() => '(name LIKE ? OR description LIKE ?)').join(' OR ');
-  const params = keywords.flatMap(kw => [`%${kw}%`, `%${kw}%`]);
-
-  const stmt = db.prepare(`
-    SELECT * FROM tokens
-    WHERE ${conditions}
-    ORDER BY volume_sol DESC
-    LIMIT 10
-  `);
-  return stmt.all(...params);
+  const args = keywords.flatMap(kw => [`%${kw}%`, `%${kw}%`]);
+  const result = await db.execute({
+    sql: `SELECT * FROM tokens WHERE ${conditions} ORDER BY volume_sol DESC LIMIT 10`,
+    args,
+  });
+  return result.rows;
 }
 
-export function hasRecentConcept(topic) {
+export async function hasRecentConcept(topic) {
   const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-  const row = db
-    .prepare(`SELECT 1 FROM concepts WHERE source_signal = ? AND created_at >= ? LIMIT 1`)
-    .get(topic, since);
-  return !!row;
+  const result = await db.execute({
+    sql: `SELECT 1 FROM concepts WHERE source_signal = ? AND created_at >= ? LIMIT 1`,
+    args: [topic, since],
+  });
+  return result.rows.length > 0;
 }
 
-export function hasRecentConceptExtended(topic, hours = 6) {
+export async function hasRecentConceptExtended(topic, hours = 6) {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-  const row = db
-    .prepare(`SELECT id FROM concepts WHERE source_signal = ? AND created_at >= ?`)
-    .get(topic, since);
-  return !!row;
+  const result = await db.execute({
+    sql: `SELECT id FROM concepts WHERE source_signal = ? AND created_at >= ?`,
+    args: [topic, since],
+  });
+  return result.rows.length > 0;
 }
 
-export function hasRecentConceptByKeywords(keywords, hours = 6) {
+export async function hasRecentConceptByKeywords(keywords, hours = 6) {
   if (!keywords || keywords.length === 0) return false;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   const conditions = keywords.map(() => 'LOWER(source_signal) LIKE ?').join(' OR ');
-  const params = [...keywords.map(k => `%${k.toLowerCase()}%`), since];
-  const row = db
-    .prepare(`SELECT id FROM concepts WHERE (${conditions}) AND created_at >= ? LIMIT 1`)
-    .get(...params);
-  return !!row;
+  const args = [...keywords.map(k => `%${k.toLowerCase()}%`), since];
+  const result = await db.execute({
+    sql: `SELECT id FROM concepts WHERE (${conditions}) AND created_at >= ? LIMIT 1`,
+    args,
+  });
+  return result.rows.length > 0;
 }
 
 // --- Signals ---
 
-export function insertSignal(signal) {
-  const stmt = db.prepare(`
-    INSERT INTO signals
+export async function insertSignal(signal) {
+  const result = await db.execute({
+    sql: `INSERT INTO signals
       (title, source, score, reasoning, momentum, why_it_pumps, sources, created_at, used,
        signal_strength, spread, velocity, shelf_life, absurdity_angle, source_date)
-    VALUES
-      (@title, @source, @score, @reasoning, @momentum, @why_it_pumps, @sources, @created_at, @used,
-       @signal_strength, @spread, @velocity, @shelf_life, @absurdity_angle, @source_date)
-  `);
-  const result = stmt.run(signal);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      signal.title, signal.source, signal.score, signal.reasoning,
+      signal.momentum, signal.why_it_pumps, signal.sources, signal.created_at,
+      signal.used, signal.signal_strength, signal.spread, signal.velocity,
+      signal.shelf_life, signal.absurdity_angle, signal.source_date,
+    ],
+  });
   return result.lastInsertRowid;
 }
 
 // --- Concepts ---
 
-export function insertConcept(concept) {
-  const stmt = db.prepare(`
-    INSERT INTO concepts
+export async function insertConcept(concept) {
+  const result = await db.execute({
+    sql: `INSERT INTO concepts
       (signal_id, name, ticker, description, narrative, image_prompt,
        flux, telegram_status, created_at, feedback_notes, sources, source_date, source_signal)
-    VALUES
-      (@signal_id, @name, @ticker, @description, @narrative, @image_prompt,
-       @flux, @telegram_status, @created_at, @feedback_notes, @sources, @source_date, @source_signal)
-  `);
-  const result = stmt.run(concept);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      concept.signal_id, concept.name, concept.ticker,
+      concept.description, concept.narrative, concept.image_prompt,
+      concept.flux, concept.telegram_status, concept.created_at,
+      concept.feedback_notes, concept.sources, concept.source_date,
+      concept.source_signal,
+    ],
+  });
   return result.lastInsertRowid;
 }
 
-export function updateConceptStatus(id, status, feedback_notes) {
-  const stmt = db.prepare(`
-    UPDATE concepts SET telegram_status = ?, feedback_notes = ?
-    WHERE id = ?
-  `);
-  return stmt.run(status, feedback_notes, id);
+export async function updateConceptStatus(id, status, feedback_notes) {
+  await db.execute({
+    sql: `UPDATE concepts SET telegram_status = ?, feedback_notes = ? WHERE id = ?`,
+    args: [status, feedback_notes, id],
+  });
 }
 
-export function getApprovedConcepts(limit = 20) {
-  const stmt = db.prepare(`
-    SELECT * FROM concepts
-    WHERE telegram_status = 'approved'
-    ORDER BY created_at DESC
-    LIMIT ?
-  `);
-  return stmt.all(limit);
+export async function getTopMovers(limit = 20) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { rows } = await db.execute({
+    sql: `SELECT name, ticker, mint, theme, volume_usd_h1, volume_usd_h24,
+            price_change_h1, price_change_h24, buys_h24, sells_h24, price_usd
+     FROM tokens
+     WHERE source = 'pumpportal' AND last_dex_update IS NOT NULL
+     AND created_at >= ? AND volume_usd_h1 > 0
+     ORDER BY volume_usd_h1 DESC
+     LIMIT ?`,
+    args: [since, limit],
+  });
+  return rows;
+}
+
+export async function getTokenMomentum(mint) {
+  const { rows: history } = await db.execute({
+    sql: `SELECT volume_usd_h1, price_change_h1, recorded_at FROM token_volume_history
+     WHERE mint = ? ORDER BY recorded_at DESC LIMIT 2`,
+    args: [mint],
+  });
+  if (history.length < 2) return 'new';
+  const [latest, previous] = history;
+  if (latest.volume_usd_h1 > previous.volume_usd_h1 * 1.5) return 'pumping';
+  if (latest.volume_usd_h1 < previous.volume_usd_h1 * 0.5) return 'dumping';
+  return 'stable';
+}
+
+export async function getApprovedConcepts(limit = 20) {
+  const result = await db.execute({
+    sql: `SELECT * FROM concepts WHERE telegram_status = 'approved' ORDER BY created_at DESC LIMIT ?`,
+    args: [limit],
+  });
+  return result.rows;
 }
 
 export default db;

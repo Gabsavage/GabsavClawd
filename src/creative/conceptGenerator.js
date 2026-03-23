@@ -1,6 +1,5 @@
-import db, { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords } from '../database/db.js';
+import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers } from '../database/db.js';
 import { analyzeTokenNarrative, analyzeNewsMemePotential } from '../scout/grokScout.js';
-import { getTopMovers } from '../scout/dexScreenerScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -159,9 +158,9 @@ async function callClaude(userPrompt) {
 // ---------------------------------------------------------------------------
 
 async function generateFromSignal(signal) {
-  const themes = getTopThemes(5);
-  const formats = getTopFormats(5);
-  const similar = searchSimilarTokens(signal.keywords || []);
+  const themes = await getTopThemes(5);
+  const formats = await getTopFormats(5);
+  const similar = await searchSimilarTokens(signal.keywords || []);
   const proven  = similar.filter(t => (t.volume_sol ?? 0) > 500);
 
   const topThemes  = themes.map((t) => t.theme);
@@ -265,7 +264,7 @@ async function generateVariants(movers) {
     ...(migration.name || '').toLowerCase().split(/\s+/),
     (migration.ticker || '').toLowerCase(),
   ].filter(Boolean);
-  const existingTokens = searchSimilarTokens(migrationKeywords);
+  const existingTokens = await searchSimilarTokens(migrationKeywords);
   const existingList = existingTokens.length > 0
     ? 'TOKENS THAT ALREADY EXIST (DO NOT REUSE ANY OF THESE NAMES):\n' +
       existingTokens.map(t => `  - "${t.name}" ($${t.ticker})`).join('\n')
@@ -333,7 +332,7 @@ Return JSON only:
 // ---------------------------------------------------------------------------
 
 async function generateCrossover(signal) {
-  const similar = searchSimilarTokens(signal.keywords || []);
+  const similar = await searchSimilarTokens(signal.keywords || []);
 
   if (!similar || similar.length === 0) {
     console.log(`[conceptGenerator] Flux 3: no similar tokens found for "${signal.topic}", falling back to Flux 1`);
@@ -400,8 +399,8 @@ async function runWithConcurrency(tasks, limit) {
 async function generateFromCTTrend(trend) {
   if (!trend) return [];
 
-  const movers = getTopMovers(5);
-  const similar = searchSimilarTokens(trend.keywords || []);
+  const movers = await getTopMovers(10);
+  const similar = await searchSimilarTokens(trend.keywords || []);
 
   const moversBlock = movers.length > 0
     ? 'WHAT\'S PUMPING ON PUMP.FUN RIGHT NOW (market context — what degens are buying):\n' +
@@ -469,7 +468,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
     return categoryCounts[cat] <= 2;
   });
   for (const signal of diverseSignals.slice(0, 3)) {
-    if (hasRecentConceptExtended(signal.topic)) {
+    if (await hasRecentConceptExtended(signal.topic)) {
       console.log(`[conceptGenerator] Flux 1: skipping "${signal.topic}" — already generated recently`);
       continue;
     }
@@ -487,7 +486,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
     return true;
   });
   for (const migration of diverseMigrations.slice(0, 3)) {
-    if (hasRecentConcept(migration.ticker)) {
+    if (await hasRecentConcept(migration.ticker)) {
       console.log(`[conceptGenerator] Flux 2: skipping "${migration.ticker}" — variant already generated recently`);
       continue;
     }
@@ -497,7 +496,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   // Flux 3: up to 3 concepts from CT trends (Grok-sourced)
   for (const trend of ctTrends.slice(0, 3)) {
     const trendKeywords = trend.keywords?.length ? trend.keywords : [trend.trend];
-    if (hasRecentConceptByKeywords(trendKeywords)) {
+    if (await hasRecentConceptByKeywords(trendKeywords)) {
       console.log(`[conceptGenerator] Flux 3: skipping "${trend.trend}" — keywords already covered recently`);
       continue;
     }
@@ -513,7 +512,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   const now = new Date().toISOString();
   for (const concept of flat) {
     try {
-      insertConcept({
+      await insertConcept({
         signal_id: null,
         name: concept.name,
         ticker: concept.ticker,

@@ -191,7 +191,7 @@ async function handleCallbackQuery(query) {
     case 'launch': {
       pendingLaunches.push({ ...concept, launchedAt: new Date().toISOString() });
       if (concept.db_id) {
-        try { updateConceptStatus(concept.db_id, 'approved', 'launched via Telegram'); } catch {}
+        try { await updateConceptStatus(concept.db_id, 'approved', 'launched via Telegram'); } catch {}
       }
       await removeButtons(chatId, messageId);
       await tgPost('sendMessage', {
@@ -214,7 +214,7 @@ async function handleCallbackQuery(query) {
 
     case 'skip': {
       if (concept.db_id) {
-        try { updateConceptStatus(concept.db_id, 'rejected', 'skipped via Telegram'); } catch {}
+        try { await updateConceptStatus(concept.db_id, 'rejected', 'skipped via Telegram'); } catch {}
       }
       concepts.delete(conceptId);
       await removeButtons(chatId, messageId);
@@ -229,7 +229,7 @@ async function handleCallbackQuery(query) {
 
     case 'hot': {
       if (concept.db_id) {
-        try { updateConceptStatus(concept.db_id, 'hot', 'marked hot via Telegram'); } catch {}
+        try { await updateConceptStatus(concept.db_id, 'hot', 'marked hot via Telegram'); } catch {}
       }
       await saveHotTopic(concept);
       await removeButtons(chatId, messageId);
@@ -329,7 +329,7 @@ async function handleMessage(message) {
   pendingLaunches.push({ ...updated, launchedAt: new Date().toISOString() });
 
   if (concept.db_id) {
-    try { updateConceptStatus(concept.db_id, 'approved', `modified: ${message.text}`); } catch {}
+    try { await updateConceptStatus(concept.db_id, 'approved', `modified: ${message.text}`); } catch {}
   }
 
   await tgPost('sendMessage', {

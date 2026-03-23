@@ -71,7 +71,8 @@ src/
 ### Flux 3 — CT Trend
 - **Trigger:** immediate start, then every 45 min
 - **Scout:** `scanCryptoTwitter()` (Grok) — finds 3-5 rising memes/narratives on CT
-- **Generator:** `generateFromCTTrend()` — up to 2 concepts per cycle
+- **Enrichment:** `getTopMovers(5)` (DexScreener) — top 5 pumping tokens injected as market context into the generator prompt ("what degens are buying right now")
+- **Generator:** `generateFromCTTrend()` — 2-step Claude prompt: state the specific hook/energy from the CT trend first, then create the token (same pattern as Flux 1/2). Up to 3 concepts per cycle. `source_migrations` is set to top mover tickers.
 - **Dedup:** `hasRecentConceptByKeywords()` — SQL `LIKE` match on `source_signal` using trend keywords (handles dynamic trend names that change between cycles)
 
 ### DexScreener refresh (background)
@@ -83,7 +84,7 @@ src/
 ### PumpPortal WebSocket (always-on)
 - Connects to `wss://pumpportal.fun/api/data`
 - Subscribes to `subscribeNewToken` and `subscribeMigration`
-- Filters: ignores new tokens with market cap < 30 SOL
+- Filters: ignores new tokens with market cap < 300 SOL
 - Auto-reconnects on disconnect (5s delay)
 - Detects theme (`animal`, `politics`, `celebrity`, `crypto`, `religion`, `internet`) and format (`send`, `what-the`, `inu`, `coin`, `classic`) from token name/description
 

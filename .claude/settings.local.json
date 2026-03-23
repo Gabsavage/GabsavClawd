@@ -39,7 +39,32 @@
       "Bash(node --env-file=.env -e \":*)",
       "Bash(node --env-file=.env --input-type=module -e \":*)",
       "Bash(pkill -f \"node --env-file=.env src/index.js\")",
-      "Bash(pkill -f \"npm start\")"
+      "Bash(pkill -f \"npm start\")",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" --env-file=.env src/index.js)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" install)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(where node:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/gabri/AppData/Roaming/npm\")",
+      "Bash(npm --version)",
+      "Bash(node --env-file=.env src/scout/perplexityScout.js)",
+      "WebSearch",
+      "WebFetch(domain:docs.dexscreener.com)",
+      "WebFetch(domain:www.veritasprotocol.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:pumpportal.fun)",
+      "Bash(node --env-file=.env src/scout/dexScreenerScout.js)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(node --env-file=.env:*)",
+      "Bash(claude install:*)",
+      "Bash(cat /c/Users/gabri/.claude/plugins/*.json)",
+      "Bash(find /c/Users/gabri/.claude/plugins/cache/claude-plugins-official/github -name *.json)",
+      "Skill(update-config)"
     ]
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": false
+  },
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
   }
 }

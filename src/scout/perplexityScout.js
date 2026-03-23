@@ -109,7 +109,7 @@ export async function runPerplexityScan() {
   const created_at = new Date().toISOString();
 
   for (const t of signals) {
-    insertSignal({
+    await insertSignal({
       title: t.topic,
       source: 'perplexity',
       score: t.signal_strength,
@@ -135,13 +135,13 @@ export async function runPerplexityScan() {
   return signals;
 }
 
-export function getLatestSignals() {
+export async function getLatestSignals() {
   const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-  return db
-    .prepare(
-      `SELECT * FROM signals WHERE source = 'perplexity' AND used = 0 AND created_at >= ? ORDER BY score DESC`
-    )
-    .all(since);
+  const { rows } = await db.execute({
+    sql: `SELECT * FROM signals WHERE source = 'perplexity' AND used = 0 AND created_at >= ? ORDER BY score DESC`,
+    args: [since],
+  });
+  return rows;
 }
 
 // --- Standalone test ---

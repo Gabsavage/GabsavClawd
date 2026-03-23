@@ -2,10 +2,9 @@ import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { startWebSocket } from './scout/webSocketScout.js';
+import { initDb, getTopMovers } from './database/db.js';
 import { runPerplexityScan } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
-import { refreshTokenData, getTopMovers } from './scout/dexScreenerScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
 import { startBot, sendConcept, stopBot, getPendingLaunches } from './bot/telegramBot.js';
 
@@ -147,11 +146,10 @@ async function runPerplexityCycle() {
 }
 
 // ---------------------------------------------------------------------------
-// FLUX 2 CYCLE — runs every 60 minutes, offset 15 minutes after start
+// FLUX 2 CYCLE — runs every 60 minutes
 // ---------------------------------------------------------------------------
 
 const FLUX2_INTERVAL_MS = 60 * 60 * 1000;
-const FLUX2_OFFSET_MS   = 15 * 60 * 1000;
 
 async function runFlux2Cycle() {
   const entry = logEntry('flux2');
@@ -159,7 +157,7 @@ async function runFlux2Cycle() {
   console.log(`[flux2] Cycle starting at ${entry.startedAt}`);
 
   try {
-    const movers = getTopMovers(10);
+    const movers = await getTopMovers(10);
     entry.signalCount = movers.length;
 
     if (movers.length === 0) {
@@ -185,11 +183,10 @@ async function runFlux2Cycle() {
 }
 
 // ---------------------------------------------------------------------------
-// FLUX 3 CYCLE — runs every 45 minutes, offset 20 minutes after start
+// FLUX 3 CYCLE — runs every 45 minutes
 // ---------------------------------------------------------------------------
 
 const FLUX3_INTERVAL_MS = 45 * 60 * 1000;
-const FLUX3_OFFSET_MS   = 20 * 60 * 1000;
 
 async function runFlux3Cycle() {
   const entry = logEntry('flux3');
@@ -230,50 +227,22 @@ async function main() {
   loadEnv();
 
   console.log('[main] GabsavClawd autonomous meme token scout starting...');
+  await initDb();
 
   startBot();
-  startWebSocket();
 
-  await runPerplexityCycle();
-  setInterval(() => {
-    runPerplexityCycle().catch((err) =>
-      console.error(`[perplexity] Unhandled error: ${err.message}`)
-    );
-  }, PERPLEXITY_INTERVAL_MS);
+  // All flux cycles — immediate start
+  runPerplexityCycle().catch((err) => console.error(`[perplexity] Unhandled error: ${err.message}`));
+  runFlux2Cycle().catch((err) => console.error(`[flux2] Unhandled error: ${err.message}`));
+  runFlux3Cycle().catch((err) => console.error(`[flux3] Unhandled error: ${err.message}`));
 
-  // TEMP: modified — Flux 2 launches immediately (offset removed)
-  runFlux2Cycle().catch((err) =>
-    console.error(`[flux2] Unhandled error: ${err.message}`)
-  );
-  setInterval(() => {
-    runFlux2Cycle().catch((err) =>
-      console.error(`[flux2] Unhandled error: ${err.message}`)
-    );
-  }, FLUX2_INTERVAL_MS);
-
-  // TEMP: modified — Flux 3 launches immediately (offset removed)
-  runFlux3Cycle().catch((err) =>
-    console.error(`[flux3] Unhandled error: ${err.message}`)
-  );
-  setInterval(() => {
-    runFlux3Cycle().catch((err) =>
-      console.error(`[flux3] Unhandled error: ${err.message}`)
-    );
-  }, FLUX3_INTERVAL_MS);
-
-  // DexScreener token data refresh — every 15 minutes, immediate start
-  const DEX_REFRESH_MS = 15 * 60 * 1000;
-  const runDexRefresh = () => {
-    console.log('[DexScreener] Token data refresh...');
-    refreshTokenData().catch(err => console.error('[DexScreener] Refresh error:', err.message));
-  };
-  runDexRefresh();
-  setInterval(runDexRefresh, DEX_REFRESH_MS);
+  setInterval(() => runPerplexityCycle().catch((err) => console.error(`[perplexity] Unhandled error: ${err.message}`)), PERPLEXITY_INTERVAL_MS);
+  setInterval(() => runFlux2Cycle().catch((err) => console.error(`[flux2] Unhandled error: ${err.message}`)), FLUX2_INTERVAL_MS);
+  setInterval(() => runFlux3Cycle().catch((err) => console.error(`[flux3] Unhandled error: ${err.message}`)), FLUX3_INTERVAL_MS);
 
   console.log('[main] Flux 1 cycle: every 30 min, immediate start');
   console.log('[main] Flux 2 cycle: every 60 min, immediate start');
   console.log('[main] Flux 3 cycle: every 45 min, immediate start');
-  console.log('[main] DexScreener refresh: every 15 min, immediate start');
 }
 
 main();
