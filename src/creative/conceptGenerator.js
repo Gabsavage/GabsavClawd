@@ -437,12 +437,10 @@ RULES:
 - Use the EXACT slang from WHAT CT IS SAYING — degens search these exact words
 - If CT has a specific joke or nickname, BUILD ON THAT, don't abstract it
 - The token must be funny ON ITS OWN without knowing the CT context
-- TICKER: real word or recognizable name, not an abbreviation
-
 Return JSON only:
 {
   "name": string (max 32 chars),
-  "ticker": string (max 10 chars, real word, not abbreviation),
+  "ticker": string,
   "description": string (1 sentence, shitpost energy),
   "narrative": string (1 sentence, why degens buy this),
   "image_prompt": string (visual for pump.fun thumbnail),
