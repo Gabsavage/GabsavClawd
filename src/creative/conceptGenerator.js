@@ -308,16 +308,11 @@ CONCRETE EXAMPLE of how to think:
 - Bad new token: "Dev Error" ($RUGGED) — $RUGGED is a generic crypto term with no real connection to the story. The ticker must be as specific as the name.
 
 RULES:
-- The TICKER must be as specific and funny as the NAME — no generic crypto words ($RUGGED, $APE, $MOON, $GG) unless they are genuinely the best fit for THIS specific story.
-- Ticker must be a real word or recognizable name that makes someone smirk independently of reading the full name.
 - Follow proven pump.fun patterns: Iconic Word | Absurd Mashup | Shitpost Phrase | Meme Creature.
 - Description: 1 sentence, shitpost energy.
 - Narrative: 1 sentence, why a degen buys this.
 
-QUALITY CHECK before returning:
-1. Could someone who has never heard of crypto laugh at this? If no, try again.
-2. Is the ticker a generic crypto word with no specific tie to THIS story? If yes, find something more specific.
-3. Does the ticker add a new angle or punchline beyond the name? If it just repeats the name's main word, that's lazy.
+Before returning: Could someone who has never heard of crypto laugh at this? If no, try again.
 
 Return JSON only:
 {
