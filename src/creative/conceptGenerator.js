@@ -21,11 +21,6 @@ PROCESS:
 NAMING RULES:
 - Name: 1-2 words ideal, 3 max, NEVER more than 4 words
 - The name must be INSTANTLY understandable — if someone needs more than 1 second to get the reference, it's too clever
-- Ticker: 3-5 characters, must feel like something you'd see trending on DEXScreener
-- GOOD tickers: $PUNCH, $RICO, $JUDY, $NUKE, $BRON, $MOSSAD
-- BAD tickers: $STRIKE, $REGIME, $SUPREME, $PUMP, $COIN, $TOKEN — these are generic and boring
-- The ticker should make someone smirk when they read it
-- NEVER include the $ symbol in the ticker field — return only the letters (e.g. "NUKE" not "$NUKE")
 
 CRITICAL — NAME STYLE:
 Your name should follow ONE of these proven pump.fun patterns (pick the best fit for the topic):
@@ -46,10 +41,21 @@ DO NOT default to "[noun] go boom/brrr" every time — that's lazy and repetitiv
 Pick the pattern that fits the story best. Vary your approach across concepts.
 
 TICKER RULES:
-- The ticker must be a REAL word or recognizable name, not an abbreviation
-- GOOD: $HORMUZ, $VODKA, $BOOM, $SINK, $CHAD, $BARRON, $MULLER
-- BAD: $FHOUR, $CRISPY, $HOUR1, $WSCN, $FCH — nobody knows what these mean
-- If in doubt, use the most memorable single word from the story
+- Max 10 characters. Must be a real word or recognizable name — not an abbreviation, not random letters.
+- Must NOT just repeat the main word of the name. "Crypto Daddy" → $DADDY is lazy. Find a twist.
+- Must add a new angle or punchline beyond the name. A great ticker makes someone smirk without reading the name.
+- If CT is using a specific word as a meme, use THAT EXACT WORD in the ticker — never a synonym or metaphor. Degens search the exact word. "OpenClaw trending" → $CLAW not $GRIP.
+- NEVER use generic words: $WAR, $NUKE, $PUMP, $COIN, $APE, $MOON, $RUGGED, $STRIKE, $REGIME — these could go on any token.
+- When a token is a direct response to an existing one ($HERE already exists → play: $THERE, $GONE).
+- NEVER include the $ symbol in the ticker field — return only the letters (e.g. "NUKE" not "$NUKE").
+
+GOOD tickers: $PAPI ("Crypto Daddy" — twist, smirk-worthy alone), $TRANS ("Transitory" — double-meaning), $FARM ("General Farming" — obvious but self-contained), $HORMUZ, $VODKA, $BOOM, $RICO, $JUDY
+BAD tickers: $DADDY (copies name's last word), $FARMS (copies word from name), $GRIP (synonym for "Claw" — nobody searches this), $NUMB3R/$FHOUR/$WSCN (abbreviations), $STRIKE/$REGIME/$WAR/$RUGGED (generic)
+
+TICKER SELF-CHECK — verify before returning JSON:
+1. Is it a real word or recognizable name? If no → replace.
+2. Does it repeat the main word of the name? If yes → find a twist.
+3. Could it go on any token, not just this one? If yes → too generic, make it specific.
 
 TONE RULES:
 - Absurdist, dark humor, internet-native — like a drunk tweet that's actually funny
@@ -85,9 +91,6 @@ AUDIENCE & TONE:
 
 FORMAT RULES:
 - Token name: MAXIMUM 32 characters. If your name is longer, shorten it.
-- Ticker: MAXIMUM 10 characters. Must be a real word or recognizable name.
-- Ticker must NOT just be the concept repeated. If the token is about a hamster who is a NEET, the ticker is NOT $NEET (already taken/obvious). Find a twist: $NEEH, $HAMST, etc.
-- When a token is clearly a RESPONSE to an existing token (like $HERE already exists), the obvious play is the mirror/opposite ($THERE, $GONE, etc.) — don't overthink it.
 
 BAD examples (never do this):
 - "Rug Pull Simulator" — meta-crypto, nobody laughs
