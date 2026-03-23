@@ -227,12 +227,6 @@ EXAMPLE of good vs bad:
 - BAD token: "Iran Strike" ($MISSILE) — this is a news headline, not a meme
 - GOOD token: "Free Fireworks" ($BOOM) — CT's dark humor angle, funny without geopolitics context
 
-RULES:
-- The TICKER must relate to the meme angle, not the geopolitical event
-- Use TRENDING WORDS from CT if provided — degens search the exact trending word
-- If CT has a specific nickname or joke for this topic, BUILD ON THAT
-- No generic geo-political tickers ($WAR, $NUKE, $IRAN) unless CT is literally using that word as a meme
-
 Return JSON only:
 {
   "name": string,
