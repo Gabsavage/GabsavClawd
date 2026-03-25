@@ -239,8 +239,9 @@ EXAMPLE of good vs bad:
 - BAD token: "Iran Strike" ($MISSILE) — this is a news headline, not a meme
 - GOOD token: "Free Fireworks" ($BOOM) — CT's dark humor angle, funny without geopolitics context
 
-Return JSON only:
+Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 {
+  "reasoning": string (your meme angle from STEP 1, one sentence),
   "name": string,
   "ticker": string,
   "description": string (1 sentence, shitpost energy),
