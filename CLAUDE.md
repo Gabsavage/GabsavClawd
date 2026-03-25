@@ -9,8 +9,8 @@ The system continuously monitors trending topics and on-chain activity, generate
 ## Tech stack
 
 - **Runtime:** Node.js ESM (`"type": "module"`)
-- **Database:** SQLite via `better-sqlite3` (`src/database/data/pumpfun.db`, gitignored)
-- **Dependencies:** `better-sqlite3`, `ws`, `express` (dashboard, currently unused in main loop)
+- **Database:** Turso (libSQL cloud) via `@libsql/client`
+- **Dependencies:** `@libsql/client`, `express`
 - **No build step.** No TypeScript. No transpilation.
 
 ## Commands
@@ -18,6 +18,7 @@ The system continuously monitors trending topics and on-chain activity, generate
 ```bash
 npm start        # production — loads .env via Node --env-file
 npm run dev      # dev — same + --watch for hot reload
+npm run dashboard  # runs dashboard server (src/dashboard/server.js — not yet implemented)
 ```
 
 `.env` is loaded by Node's built-in `--env-file` flag — no `dotenv` package.
@@ -31,6 +32,8 @@ npm run dev      # dev — same + --watch for hot reload
 | `XAI_API_KEY` | `grokScout.js` — Flux 3 CT scan + CT context enrichment |
 | `TELEGRAM_BOT_TOKEN` | `telegramBot.js` |
 | `TELEGRAM_CHAT_ID` | `telegramBot.js` — destination chat |
+| `TURSO_DATABASE_URL` | `db.js` — Turso cloud DB connection |
+| `TURSO_AUTH_TOKEN` | `db.js` — Turso auth |
 
 ## Source tree
 
@@ -42,14 +45,13 @@ src/
 │   └── hotTopics.json         # Persisted "hot" angles (created at runtime, gitignored).
 ├── creative/
 │   └── conceptGenerator.js    # Claude API. Generates concepts for Flux 1/2/3.
+├── dashboard/
+│   └── data/                  # Runtime JSON files: activity_status.json, cycle_log.json (untracked)
 ├── database/
-│   ├── db.js                  # SQLite schema, migrations, all query helpers.
-│   └── data/                  # DB file lives here (gitignored).
+│   └── db.js                  # Turso schema, migrations, all query helpers.
 └── scout/
-    ├── dexScreenerScout.js    # DexScreener REST API. Volume/price enrichment.
     ├── grokScout.js           # xAI Grok API. CT trend scan + per-signal meme enrichment (Flux 1) + per-token narrative (Flux 2).
-    ├── perplexityScout.js     # Perplexity API. Mainstream/social news scan.
-    └── webSocketScout.js      # PumpPortal WebSocket. Real-time token + migration feed.
+    └── perplexityScout.js     # Perplexity API. Mainstream/social news scan.
 ```
 
 ## Architecture: three generation pipelines
@@ -63,7 +65,7 @@ src/
 
 ### Flux 2 — Crypto -> Crypto
 - **Trigger:** immediate start, then every 60 min
-- **Scout:** `getTopMovers(10)` — top 10 tokens by `volume_usd_h1` from DexScreener-enriched data
+- **Scout:** `getTopMovers(10)` — top 10 tokens by `volume_usd_h1` from the `tokens` table (populated externally; returns empty if no data)
 - **Enrichment:** `analyzeTokenNarrative(token)` (Grok) — per-token structured CT analysis: `why_pumping`, `ct_reaction`, `meme_angle`, `vibe`. Returns `null` if CT is silent.
 - **Generator:** `generateVariants()` — 2-step Claude prompt: state the underlying energy first, then create a new token from a different angle. Up to 3 concepts per cycle, deduplicated by theme.
 - **Dedup:** skips if a variant for that ticker was already generated in the last 2 hours
@@ -71,26 +73,13 @@ src/
 ### Flux 3 — CT Trend
 - **Trigger:** immediate start, then every 45 min
 - **Scout:** `scanCryptoTwitter()` (Grok) — finds 3-5 rising memes/narratives on CT
-- **Enrichment:** `getTopMovers(5)` (DexScreener) — top 5 pumping tokens injected as market context into the generator prompt ("what degens are buying right now")
+- **Enrichment:** `getTopMovers(10)` (DB) — top pumping tokens injected as market context into the generator prompt ("what degens are buying right now")
 - **Generator:** `generateFromCTTrend()` — 2-step Claude prompt: state the specific hook/energy from the CT trend first, then create the token (same pattern as Flux 1/2). Up to 3 concepts per cycle. `source_migrations` is set to top mover tickers.
 - **Dedup:** `hasRecentConceptByKeywords()` — SQL `LIKE` match on `source_signal` using trend keywords (handles dynamic trend names that change between cycles)
 
-### DexScreener refresh (background)
-- **Trigger:** immediate start, then every 15 min
-- Fetches volume + price data for all PumpPortal tokens from the last 24h not updated in 15 min
-- Batches up to 30 mint addresses per API call with 500ms delay between batches
-- Writes to `tokens` table and `token_volume_history` for momentum tracking
-
-### PumpPortal WebSocket (always-on)
-- Connects to `wss://pumpportal.fun/api/data`
-- Subscribes to `subscribeNewToken` and `subscribeMigration`
-- Filters: ignores new tokens with market cap < 300 SOL
-- Auto-reconnects on disconnect (5s delay)
-- Detects theme (`animal`, `politics`, `celebrity`, `crypto`, `religion`, `internet`) and format (`send`, `what-the`, `inu`, `coin`, `classic`) from token name/description
-
 ## Database schema
 
-**`tokens`** — pump.fun tokens ingested from PumpPortal, enriched by DexScreener
+**`tokens`** — pump.fun tokens (populated externally; no active ingest pipeline in this repo)
 - Key fields: `name`, `ticker`, `mint`, `theme`, `format`, `keywords`, `migrated`, `source`, `volume_sol`, `volume_usd_h1`, `price_change_h1`, `last_dex_update`
 - Unique constraint: `(name, ticker)`
 
@@ -133,10 +122,17 @@ Commands: `/status`, `/pending`, `/help`
 - **Flux 2:** `analyzeTokenNarrative(token)` — structured Grok analysis per pumping token. Returns `{ why_pumping, ct_reaction, meme_angle, vibe }` or `null`.
 - Both functions follow the same error-handling pattern: API key guard → HTTP error → JSON parse guard → outer catch. All return `null` on any failure.
 
+**Grok model:** `grok-4-1-fast-non-reasoning` (used for all three enrichment functions)
+
 ## Key design decisions
 
 - **No dotenv.** Env loading is done manually in `index.js:loadEnv()` via `fs.readFileSync`.
 - **No external HTTP framework for the bot.** Telegram uses raw `fetch` with long-polling.
-- **SQLite migrations are inline.** `db.js` runs `ALTER TABLE` statements in try/catch on startup — no migration files.
+- **Database is Turso (cloud libSQL).** Requires `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. Schema migrations are inline in `db.js` `initDb()` using `CREATE TABLE IF NOT EXISTS`.
 - **All three Flux pipelines are active.** Flux 1 runs every 30 min (immediate start), Flux 2 every 60 min, Flux 3 every 45 min.
 - **No automated token launch.** `pendingLaunches` is a manual queue — the bot operator launches tokens by hand.
+- **No PumpPortal WebSocket.** No DexScreener refresh cycle. The `tokens` table helpers exist in `db.js` but no active ingest pipeline runs in this repo — Flux 2 gracefully skips when `getTopMovers()` returns empty.
+
+## Tech debt
+
+- **`JSON.parse(s.reasoning || '{}')` in `generateConcepts()` (~line 482) is unguarded.** If a `signals` DB row has malformed JSON in its `reasoning` column, this call throws inside `Array.prototype.filter`, crashing the entire Flux 1 signal dedup pass and dropping all signals for that cycle. Wrap in a `try/catch` that falls back to `'{}'`.

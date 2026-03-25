@@ -162,6 +162,7 @@ async function callClaude(userPrompt) {
     throw new Error(`[callClaude] JSON.parse failed: ${err.message}\nRaw response:\n${text.slice(0, 500)}`);
   }
 
+  if (concept.reasoning) console.log(`[conceptGenerator] reasoning: ${concept.reasoning}`);
   if (concept.ticker) concept.ticker = concept.ticker.replace(/^\$/, '');
   return concept;
 }
