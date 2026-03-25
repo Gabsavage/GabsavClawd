@@ -147,8 +147,21 @@ async function callClaude(userPrompt) {
   const text = json.content?.[0]?.text;
   if (!text) throw new Error('Claude returned no content');
 
-  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  const concept = JSON.parse(clean);
+  // Strip markdown code fences
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  // Extract JSON object — fallback if model still outputs prose around it
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error(`[callClaude] No JSON object found in response:\n${text.slice(0, 300)}`);
+
+  // Parse — log raw response on failure
+  let concept;
+  try {
+    concept = JSON.parse(match[0]);
+  } catch (err) {
+    throw new Error(`[callClaude] JSON.parse failed: ${err.message}\nRaw response:\n${text.slice(0, 500)}`);
+  }
+
   if (concept.ticker) concept.ticker = concept.ticker.replace(/^\$/, '');
   return concept;
 }
