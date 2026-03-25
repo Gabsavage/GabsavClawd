@@ -486,7 +486,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   });
   for (const signal of diverseSignals.slice(0, 3)) {
     if (await hasRecentConceptExtended(signal.topic)) {
-      console.log(`[conceptGenerator] Flux 1: skipping "${signal.topic}" — already generated recently`);
+      console.log(`[flux1] ⏭ Skip "${signal.topic}" — already generated in last 6h`);
       continue;
     }
     usedTopics.add(signal.topic);
@@ -494,17 +494,11 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   }
 
   // Flux 2: up to 3 variants from migrations (one prompt per migration, max 3)
-  // Deduplicate migrations by theme — max 1 per theme
-  const seenThemes = new Set();
-  const diverseMigrations = migrations.filter(m => {
-    const theme = m.theme || 'unknown';
-    if (seenThemes.has(theme)) return false;
-    seenThemes.add(theme);
-    return true;
-  });
-  for (const migration of diverseMigrations.slice(0, 3)) {
+  const diverseMigrations = migrations.slice(0, 3);
+  console.log(`[flux2] ${diverseMigrations.length} candidate(s) after dedup → checking recent concepts`);
+  for (const migration of diverseMigrations) {
     if (await hasRecentConcept(migration.ticker)) {
-      console.log(`[conceptGenerator] Flux 2: skipping "${migration.ticker}" — variant already generated recently`);
+      console.log(`[flux2] ⏭ Skip $${migration.ticker} — variant generated in last 2h`);
       continue;
     }
     tasks.push(() => generateVariants([migration]));
@@ -514,7 +508,7 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   for (const trend of ctTrends.slice(0, 3)) {
     const trendKeywords = trend.keywords?.length ? trend.keywords : [trend.trend];
     if (await hasRecentConceptByKeywords(trendKeywords)) {
-      console.log(`[conceptGenerator] Flux 3: skipping "${trend.trend}" — keywords already covered recently`);
+      console.log(`[flux3] ⏭ Skip "${trend.trend}" — recent concept found by keywords`);
       continue;
     }
     tasks.push(() => generateFromCTTrend(trend));
