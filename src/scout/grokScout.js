@@ -1,4 +1,5 @@
 const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
+const GROK_RESPONSES_URL = 'https://api.x.ai/v1/responses';
 
 export async function getTwitterContext(query, options = {}) {
   const apiKey = process.env.XAI_API_KEY;
@@ -137,9 +138,10 @@ export async function scanCryptoTwitter() {
   }
 
   const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
   try {
-    const res = await fetch(GROK_API_URL, {
+    const res = await fetch(GROK_RESPONSES_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -147,14 +149,16 @@ export async function scanCryptoTwitter() {
       },
       body: JSON.stringify({
         model: 'grok-4-1-fast-non-reasoning',
-        messages: [
+        include: ['no_inline_citations'],
+        tools: [{ type: 'x_search', from_date: yesterday, to_date: today }],
+        input: [
           {
             role: 'system',
             content: 'You are a Crypto Twitter trend spotter. You search X/Twitter and find memes, narratives, jokes, characters, and cultural moments that are RISING on Crypto Twitter right now. You are NOT looking for token launches or price action — you are looking for the CULTURE that tokens get built on. Always respond in English with valid JSON only, no markdown.'
           },
           {
             role: 'user',
-            content: `Today is ${today}. Search Crypto Twitter right now.
+            content: `Today is ${today}. Search Crypto Twitter in the last 24 hours.
 
 Find 3-5 memes, narratives, jokes, or cultural moments that are GAINING TRACTION on CT in the last few hours. These are NOT tokens — these are the TOPICS and MEMES that degens are posting about, arguing about, or turning into jokes.
 
@@ -191,7 +195,8 @@ Return a JSON array only.`
     }
 
     const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content ?? '';
+    const msgOutput = data.output?.find(o => o.type === 'message');
+    const raw = msgOutput?.content?.[0]?.text ?? '';
     const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const trends = JSON.parse(content);
 
@@ -214,9 +219,10 @@ export async function analyzeNewsMemePotential(signal) {
   }
 
   const today = new Date().toISOString().split('T')[0];
+  const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
 
   try {
-    const res = await fetch(GROK_API_URL, {
+    const res = await fetch(GROK_RESPONSES_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -224,7 +230,9 @@ export async function analyzeNewsMemePotential(signal) {
       },
       body: JSON.stringify({
         model: 'grok-4-1-fast-non-reasoning',
-        messages: [
+        include: ['no_inline_citations'],
+        tools: [{ type: 'x_search', from_date: twoDaysAgo, to_date: today }],
+        input: [
           {
             role: 'system',
             content: 'You are a Crypto Twitter analyst. Search X/Twitter to find out if and how the crypto community is reacting to real-world news topics. Report raw CT energy, slang, memes, and the specific angle degens are taking. Always respond in English with valid JSON only, no markdown.',
@@ -259,7 +267,8 @@ If CT is completely silent on this topic (not mentioned at all), return: {"ct_si
     }
 
     const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content ?? '';
+    const msgOutput = data.output?.find(o => o.type === 'message');
+    const raw = msgOutput?.content?.[0]?.text ?? '';
     const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     let result;
     try {
