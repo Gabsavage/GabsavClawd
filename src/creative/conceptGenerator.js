@@ -327,8 +327,9 @@ RULES:
 
 Before returning: Could someone who has never heard of crypto laugh at this? If no, try again.
 
-Return JSON only:
+Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 {
+  "reasoning": string (your meme angle from STEP 1, one sentence),
   "name": string,
   "ticker": string,
   "description": string,
