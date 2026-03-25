@@ -451,8 +451,9 @@ RULES:
 - Use the EXACT slang from WHAT CT IS SAYING — degens search these exact words
 - If CT has a specific joke or nickname, BUILD ON THAT, don't abstract it
 - The token must be funny ON ITS OWN without knowing the CT context
-Return JSON only:
+Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 {
+  "reasoning": string (your hook from STEP 1, one sentence),
   "name": string (max 32 chars),
   "ticker": string,
   "description": string (1 sentence, shitpost energy),
