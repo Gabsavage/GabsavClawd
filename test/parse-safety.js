@@ -1,10 +1,10 @@
 // test/parse-safety.js
 // Run with: node test/parse-safety.js
 //
-// Before Task 2: expects Case 2 to FAIL (demonstrating the bug).
-// After Task 2: update parseModelResponse() to the defensive version — all 4 pass.
+// Regression guard for callClaude() JSON parsing in conceptGenerator.js.
+// Mirrors the defensive parse logic in callClaude() — all 4 cases must pass.
 
-// --- CURRENT parse logic (pre-fix) — replace this function in Task 2 ---
+// --- parse logic (mirrors callClaude() in conceptGenerator.js) ---
 function parseModelResponse(text) {
   const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   const match = stripped.match(/\{[\s\S]*\}/);
