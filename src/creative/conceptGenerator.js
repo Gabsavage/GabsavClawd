@@ -222,6 +222,14 @@ ${blacklistBlock}
 TOP PERFORMING THEMES RIGHT NOW: ${topThemes.join(', ')}
 TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}`;
 
+  const namedEntities = signal.named_entities
+    ?? (() => { try { return JSON.parse(signal.reasoning || '{}').named_entities; } catch { return null; } })()
+    ?? [];
+
+  const entitiesBlock = namedEntities.length > 0
+    ? `\nTICKER CANDIDATES (exact proper nouns from this story — strong default for the ticker unless the meme angle clearly points elsewhere):\n${namedEntities.join(', ')}\n`
+    : '';
+
   const prompt = `NEWS SIGNAL: ${signal.topic}
 WHAT HAPPENED: ${signal.summary}
 MOST ABSURD/SHAREABLE FACT: ${signal.what_happened || signal.absurdity_angle || 'none'}
@@ -229,7 +237,7 @@ MOST ABSURD/SHAREABLE FACT: ${signal.what_happened || signal.absurdity_angle || 
 ${memeContextBlock}
 
 ${existingTokensBlock}
-
+${entitiesBlock}
 STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, state the meme angle.
 Not the news headline — the specific angle that would make a degen laugh or FOMO.
 
