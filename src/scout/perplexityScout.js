@@ -48,7 +48,8 @@ function buildMessages() {
     '  "what_happened": string (1 sentence — the single most shareable or absurd FACT from this story),\n' +
     '  "sources": string[] (2-4 REAL source names — e.g. ["Reuters", "r/worldnews", "@CNN on X"]),\n' +
     '  "source_date": string ("YYYY-MM-DD"),\n' +
-    '  "keywords": string[] (3-5 keywords)\n' +
+    '  "keywords": string[] (3-5 keywords),\n' +
+    '  "named_entities": string[] (max 3 — the EXACT proper nouns at the center of this story: person names, animal names, company names, official tickers or acronyms. The exact word a degen would type into a search box. Examples: ["Punch"], ["SMCI", "Charles Liang"], ["Harambe"]. NOT a description — write "Punch" not "the monkey", "SMCI" not "the chip company". Empty array [] if no named proper noun is central to the story.)\n' +
     '}\n\n' +
     'SCORING:\n' +
     '- 9-10: Trending on multiple platforms simultaneously, everyone is talking about it\n' +
@@ -123,6 +124,7 @@ export async function runPerplexityScan() {
         summary: t.summary,
         keywords: t.keywords,
         category: t.category,
+        named_entities: t.named_entities ?? [],
       }),
       signal_strength: t.signal_strength,
       spread: t.spread ?? null,
@@ -165,6 +167,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(`    what_happened: ${s.what_happened}`);
       console.log(`    shelf life: ${s.shelf_life}`);
       console.log(`    keywords: ${s.keywords.join(', ')}`);
+      if (s.named_entities?.length) console.log(`    named_entities: ${s.named_entities.join(', ')}`);
       console.log(`    sources: ${(s.sources ?? []).join(', ')}\n`);
     }
   }
