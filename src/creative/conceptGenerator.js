@@ -1,5 +1,6 @@
 import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers } from '../database/db.js';
 import { analyzeTokenNarrative, analyzeNewsMemePotential } from '../scout/grokScout.js';
+import { enrichWithKnowYourMeme } from '../scout/perplexityScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
@@ -192,6 +193,12 @@ async function generateFromSignal(signal) {
 
   const memeContext = await analyzeNewsMemePotential(signal);
 
+  const category = signal.category
+    ?? (() => { try { return JSON.parse(signal.reasoning || '{}').category; } catch { return null; } })()
+    ?? null;
+
+  const kymResult = category === 'internet' ? await enrichWithKnowYourMeme(signal) : null;
+
   let memeContextBlock;
   if (memeContext) {
     memeContextBlock = `THE REAL MEME ANGLE (what CT actually cares about, not the headline):
@@ -230,6 +237,10 @@ TOP PERFORMING FORMATS RIGHT NOW: ${topFormats.join(', ')}`;
     ? `\nTICKER CANDIDATES (exact proper nouns from this story — strong default for the ticker unless the meme angle clearly points elsewhere):\n${namedEntities.join(', ')}\n`
     : '';
 
+  const kymBlock = kymResult
+    ? `\nMEME IDENTITY (KnowYourMeme):\nCanonical name: ${kymResult.canonical_name}\nOrigin: ${kymResult.origin}\nKnown variants: ${(kymResult.known_variants || []).join(', ')}\n→ "${kymResult.canonical_name}" is the exact word degens search on KYM and pump.fun. Default ticker unless a funnier alternative exists.\n`
+    : '';
+
   const prompt = `NEWS SIGNAL: ${signal.topic}
 WHAT HAPPENED: ${signal.summary}
 MOST ABSURD/SHAREABLE FACT: ${signal.what_happened || signal.absurdity_angle || 'none'}
@@ -237,7 +248,19 @@ MOST ABSURD/SHAREABLE FACT: ${signal.what_happened || signal.absurdity_angle || 
 ${memeContextBlock}
 
 ${existingTokensBlock}
+${kymBlock}
 ${entitiesBlock}
+TICKER FIRST RULE — choose the ticker in this priority order:
+1. NAMED ENTITIES (TICKER CANDIDATES above): if a proper noun from the story makes a punchy ticker, use it. Override only if the meme angle clearly points to a different, funnier word.
+   Ex: story is about Zelensky dancing → $ZELENSKY beats $DANCE
+2. KEY CHARACTER/MOMENT: if no named entity fits cleanly, use the character or moment degens will latch onto.
+   Ex: no famous name but the moment is a punch → $PUNCH beats $FIGHT
+3. TRENDING WORDS: if neither above applies, use the exact word CT is using.
+   Ex: CT is saying "claw" → $CLAW beats $GRIP
+4. FREE INVENTION: only when none of the above exist. Make it specific, never generic.
+
+NOTE: named-entity tickers ($ZELENSKY, $HORMUZ) are exempt from the "don't repeat the name's main word" rule when the name covers the situation and the ticker anchors it to the person/place.
+
 STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, state the meme angle.
 Not the news headline — the specific angle that would make a degen laugh or FOMO.
 

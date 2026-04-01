@@ -152,6 +152,50 @@ export async function getLatestSignals() {
   return rows;
 }
 
+export async function enrichWithKnowYourMeme(signal) {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'sonar',
+        search_domain_filter: ['knowyourmeme.com'],
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a meme researcher. Search knowyourmeme.com only. Return valid JSON, no markdown.',
+          },
+          {
+            role: 'user',
+            content: `Search knowyourmeme.com for the meme related to: "${signal.topic}"\nContext: ${signal.summary}\n\nReturn JSON:\n{\n  "canonical_name": string (exact KYM meme name — e.g. "Punch", not "the monkey"),\n  "origin": string (1 sentence),\n  "known_variants": string[] (2-4 common alternate names),\n  "kym_url": string\n}\n\nIf no matching meme page exists, return: {"not_found": true}`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content ?? '';
+    const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      return null;
+    }
+    if (result.not_found) return null;
+
+    console.log(`[KYM] "${signal.topic}" → canonical: "${result.canonical_name}"`);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 // --- Standalone test ---
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
