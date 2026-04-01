@@ -221,6 +221,10 @@ export async function analyzeNewsMemePotential(signal) {
   const today = new Date().toISOString().split('T')[0];
   const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
 
+  const namedEntities = signal.named_entities
+    ?? (() => { try { return JSON.parse(signal.reasoning || '{}').named_entities; } catch { return null; } })()
+    ?? [];
+
   try {
     const res = await fetch(GROK_RESPONSES_URL, {
       method: 'POST',
@@ -244,12 +248,14 @@ export async function analyzeNewsMemePotential(signal) {
 What happened: ${signal.summary}
 
 Search X/Twitter and CT. Is the crypto community talking about this? What angle are they taking? Is there already a meme emerging?
-
+${namedEntities.length > 0
+  ? `\nPROPER NOUNS IDENTIFIED IN THIS STORY: ${namedEntities.join(', ')}\nCT may be using these exact names. Confirm or refine — use them in key_character_or_moment and trending_words if CT is actually using them.\n`
+  : ''}
 Return JSON:
 {
   "meme_angle": string (the specific angle CT is exploiting — NOT the headline, the joke/meme/absurd take),
   "ct_reaction": string (2-3 sentences — what people are actually posting, use their exact slang),
-  "key_character_or_moment": string (the person/moment/thing degens would latch onto),
+  "key_character_or_moment": string (the EXACT proper noun CT is using — a real name, nickname, ticker, or animal name. If no named entity is central, use a tight moment label. NEVER a vague description. Good: "Punch", "SMCI", "Hawk Tuah". Bad: "the monkey", "the chip company", "the viral moment"),
   "visual_potential": string (1 sentence — what would work as a pump.fun thumbnail),
   "trending_words": string[] (3-5 exact words or phrases CT is using for this topic)
 }
