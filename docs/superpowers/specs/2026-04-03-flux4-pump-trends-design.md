@@ -56,7 +56,7 @@ generateFromSignal(signal)
 ```
 generateVariants(movers)
   → (existing) analyzeTokenNarrative()
-  → getTrendsForToken(migration.mint)
+  → getTrendForToken(migration.mint)
   → if !narrative && trend: trend replaces narrativeBlock
   → if narrative && trend: trend appended as WAVE CONTEXT
   → if !trend: unchanged
@@ -95,7 +95,7 @@ LIMIT 1
 ```
 Returns `rows[0] ?? null`.
 
-### `getTrendsForToken(mint)`
+### `getTrendForToken(mint)`
 ```sql
 SELECT keyword, display_name, trend_type, strength_score, token_count, tokens_json
 FROM pump_trends
@@ -204,7 +204,7 @@ Reason from the most absurd or shareable fact: "<signal.what_happened || signal.
 In `generateVariants`, after `analyzeTokenNarrative`:
 
 ```js
-const waveTrend = migration.mint ? await getTrendsForToken(migration.mint) : null;
+const waveTrend = migration.mint ? await getTrendForToken(migration.mint) : null;
 ```
 
 **Case 1 — `!narrative && waveTrend`:** wave replaces narrativeBlock:

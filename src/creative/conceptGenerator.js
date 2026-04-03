@@ -228,7 +228,7 @@ TRENDING WORDS (use these in the name/ticker if possible):
 ${(memeContext.trending_words || []).join(', ')}`;
   } else {
     memeContextBlock = trendAlertBlock
-      ? `CT IS SILENT ON THIS TOPIC.\nBut this theme is already hot on-chain (see TREND ALERT above).\nReason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"`
+      ? `CT IS SILENT ON THIS TOPIC.\nBut this theme is already hot on-chain (see TREND ALERT below).\nReason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"`
       : `CT IS SILENT ON THIS TOPIC.\nReason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"\nWhat single word or moment from this story would a degen immediately understand?`;
   }
 
