@@ -282,13 +282,14 @@ export async function getTrendForKeyword(keyword) {
                  token_count, tokens_json
           FROM pump_trends
           WHERE active = 1 AND LOWER(keyword) = LOWER(?)
+          ORDER BY strength_score DESC
           LIMIT 1`,
     args: [keyword],
   });
   return rows[0] ?? null;
 }
 
-export async function getTrendsForToken(mint) {
+export async function getTrendForToken(mint) {
   const { rows } = await db.execute({
     sql: `SELECT keyword, display_name, trend_type, strength_score, token_count, tokens_json
           FROM pump_trends
