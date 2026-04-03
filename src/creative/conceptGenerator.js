@@ -193,6 +193,18 @@ async function generateFromSignal(signal) {
 
   const memeContext = await analyzeNewsMemePotential(signal);
 
+  // Flux 1 enrichment: first-match TREND ALERT from on-chain pump_trends
+  let trendAlertBlock = '';
+  for (const kw of (signal.keywords || [])) {
+    const onchainTrend = await getTrendForKeyword(kw);
+    if (onchainTrend) {
+      trendAlertBlock = `\nTREND ALERT — THIS THEME IS ALREADY HOT ON-CHAIN:\n` +
+        `${onchainTrend.token_count} tokens minted around "${onchainTrend.keyword}" | strength: ${onchainTrend.strength_score}\n` +
+        `→ If your token contains this exact keyword, degens searching pump.fun will find it.\n`;
+      break;
+    }
+  }
+
   const category = signal.category
     ?? (() => { try { return JSON.parse(signal.reasoning || '{}').category; } catch { return null; } })()
     ?? null;
@@ -215,9 +227,9 @@ VISUAL POTENTIAL: ${memeContext.visual_potential}
 TRENDING WORDS (use these in the name/ticker if possible):
 ${(memeContext.trending_words || []).join(', ')}`;
   } else {
-    memeContextBlock = `CT IS SILENT ON THIS TOPIC.
-Reason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"
-What single word or moment from this story would a degen immediately understand?`;
+    memeContextBlock = trendAlertBlock
+      ? `CT IS SILENT ON THIS TOPIC.\nBut this theme is already hot on-chain (see TREND ALERT above).\nReason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"`
+      : `CT IS SILENT ON THIS TOPIC.\nReason from the most absurd or shareable fact: "${signal.what_happened || signal.absurdity_angle || signal.summary}"\nWhat single word or moment from this story would a degen immediately understand?`;
   }
 
   const existingTokensBlock = `TOKENS THAT ALREADY EXIST (DO NOT COPY THESE NAMES — use their style as inspiration only):
@@ -249,7 +261,7 @@ ${memeContextBlock}
 
 ${existingTokensBlock}
 ${kymBlock}
-${entitiesBlock}
+${entitiesBlock}${trendAlertBlock}
 TICKER FIRST RULE — choose the ticker in this priority order:
 1. NAMED ENTITIES (TICKER CANDIDATES above): if a proper noun from the story makes a punchy ticker, use it. Override only if the meme angle clearly points to a different, funnier word.
    Ex: story is about Zelensky dancing → $ZELENSKY beats $DANCE
