@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { initDb, getTopMovers } from './database/db.js';
+import { initDb, getTopMovers, getActiveTrends } from './database/db.js';
 import { runPerplexityScan } from './scout/perplexityScout.js';
 import { scanCryptoTwitter } from './scout/grokScout.js';
 import generateConcepts from './creative/conceptGenerator.js';
@@ -220,6 +220,43 @@ async function runFlux3Cycle() {
 }
 
 // ---------------------------------------------------------------------------
+// FLUX 4 CYCLE — runs every 45 minutes
+// ---------------------------------------------------------------------------
+
+const FLUX4_INTERVAL_MS = 45 * 60 * 1000;
+
+async function runFlux4Cycle() {
+  const entry = logEntry('flux4');
+  console.log(`\n${'─'.repeat(50)}`);
+  console.log(`[flux4] Pump trends scan starting at ${entry.startedAt}`);
+
+  try {
+    const trends = await getActiveTrends(3);
+    entry.signalCount = trends.length;
+
+    if (trends.length === 0) {
+      console.log('[flux4] No active pump trends — skipping');
+      finishEntry(entry, { conceptCount: 0 });
+      return;
+    }
+
+    console.log(`[flux4] ${trends.length} trend(s) found`);
+    const concepts = await generateConcepts([], [], [], trends);
+    entry.conceptCount = concepts.length;
+    console.log(`[flux4] ${concepts.length} concept(s) generated`);
+
+    const sent = await broadcastConcepts(concepts);
+    console.log(`[flux4] ${sent}/${concepts.length} concept(s) sent to Telegram`);
+
+    finishEntry(entry, { conceptCount: concepts.length });
+  } catch (err) {
+    entry.status = 'error';
+    finishEntry(entry);
+    console.error(`[flux4] Cycle error: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -235,14 +272,17 @@ async function main() {
   runPerplexityCycle().catch((err) => console.error(`[perplexity] Unhandled error: ${err.message}`));
   runFlux2Cycle().catch((err) => console.error(`[flux2] Unhandled error: ${err.message}`));
   runFlux3Cycle().catch((err) => console.error(`[flux3] Unhandled error: ${err.message}`));
+  runFlux4Cycle().catch((err) => console.error(`[flux4] Unhandled error: ${err.message}`));
 
   setInterval(() => runPerplexityCycle().catch((err) => console.error(`[perplexity] Unhandled error: ${err.message}`)), PERPLEXITY_INTERVAL_MS);
   setInterval(() => runFlux2Cycle().catch((err) => console.error(`[flux2] Unhandled error: ${err.message}`)), FLUX2_INTERVAL_MS);
   setInterval(() => runFlux3Cycle().catch((err) => console.error(`[flux3] Unhandled error: ${err.message}`)), FLUX3_INTERVAL_MS);
+  setInterval(() => runFlux4Cycle().catch((err) => console.error(`[flux4] Unhandled error: ${err.message}`)), FLUX4_INTERVAL_MS);
 
   console.log('[main] Flux 1 cycle: every 30 min, immediate start');
   console.log('[main] Flux 2 cycle: every 60 min, immediate start');
   console.log('[main] Flux 3 cycle: every 45 min, immediate start');
+  console.log('[main] Flux 4 cycle: every 45 min, immediate start');
 }
 
 main();
