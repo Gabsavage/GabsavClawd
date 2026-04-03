@@ -331,9 +331,42 @@ async function generateVariants(movers) {
   // Structured CT narrative — replaces generic getTwitterContext
   const narrative = await analyzeTokenNarrative(migration);
 
+  // Flux 2 enrichment: on-chain wave context for this token
+  const waveTrend = migration.mint ? await getTrendForToken(migration.mint) : null;
+
   // Build the narrative block for the prompt
   let narrativeBlock;
-  if (narrative) {
+  if (narrative && waveTrend) {
+    // CT found + wave found: keep CT context, append wave
+    narrativeBlock = `WHY IT'S PUMPING: ${narrative.why_pumping}
+
+WHAT CT IS SAYING:
+${narrative.ct_reaction}
+
+MEME ANGLE CT IS WORKING WITH: ${narrative.meme_angle}
+
+VIBE: ${narrative.vibe}
+
+WAVE CONTEXT (broader on-chain trend):
+${waveTrend.token_count} tokens around "${waveTrend.keyword}" | score: ${waveTrend.strength_score}
+This isn't isolated — it's a wave. Your token should fit the wave or counter it from an unexpected angle.`;
+  } else if (!narrative && waveTrend) {
+    // CT silent + wave found: wave IS the narrative
+    let waveSamples = [];
+    try {
+      const parsed = JSON.parse(waveTrend.tokens_json || '[]');
+      waveSamples = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
+    } catch { /* ignore */ }
+    const waveSamplesText = waveSamples.length > 0
+      ? waveSamples.map(t => `"${t.name || t}" ($${t.ticker || '?'})`).join(', ')
+      : 'none';
+    narrativeBlock = `ON-CHAIN WAVE DETECTED — THIS TOKEN IS PART OF A TREND:
+Keyword: ${waveTrend.keyword} | ${waveTrend.token_count} tokens | score: ${waveTrend.strength_score}
+Sample tokens in the wave: ${waveSamplesText}
+CT is silent on this specific token, but ${waveTrend.token_count} tokens exist around this keyword.
+What energy drives degens to mint this many tokens? Build from that wave.`;
+  } else if (narrative) {
+    // CT found, no wave: original behavior
     narrativeBlock = `WHY IT'S PUMPING: ${narrative.why_pumping}
 
 WHAT CT IS SAYING:
@@ -343,6 +376,7 @@ MEME ANGLE CT IS WORKING WITH: ${narrative.meme_angle}
 
 VIBE: ${narrative.vibe}`;
   } else {
+    // CT silent, no wave: original behavior
     narrativeBlock = `CT IS SILENT ON THIS TOKEN.
 Study the name "${migration.name}" and its theme (${migration.theme || 'unknown'}). Make your best guess at the underlying energy or story. What event, meme, or feeling could explain why degens are aping in? Build on THAT energy.`;
   }
