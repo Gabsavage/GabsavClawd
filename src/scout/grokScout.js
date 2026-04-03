@@ -312,10 +312,13 @@ export async function analyzePumpTrend(trend) {
   try {
     const parsed = JSON.parse(trend.tokens_json || '[]');
     sampleTokens = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.warn(`[GrokScout] analyzePumpTrend: failed to parse tokens_json for "${trend.keyword}":`, e.message);
+  }
 
+  const safe = (s) => String(s || '').replace(/"/g, "'");
   const samplesText = sampleTokens.length > 0
-    ? sampleTokens.map(t => `"${t.name || t}" ($${t.ticker || '?'})`).join(', ')
+    ? sampleTokens.map(t => `"${safe(t.name || t)}" ($${safe(t.ticker || '?')})`).join(', ')
     : 'none';
 
   try {
@@ -340,6 +343,8 @@ export async function analyzePumpTrend(trend) {
 Display name: ${trend.display_name || trend.keyword}
 Trend type: ${trend.trend_type}
 ${trend.token_count} tokens have been created around this keyword on pump.fun.
+Strength score: ${trend.strength_score}
+First detected: ${trend.detected_at}
 Sample tokens in this wave: ${samplesText}
 
 Search X/Twitter and CT. Is the crypto community talking about this keyword? What angle are they taking? What's the meme?
@@ -348,7 +353,7 @@ Return JSON:
 {
   "meme_angle": string (the specific angle CT is exploiting — the joke/meme/absurd take, not the keyword itself),
   "ct_reaction": string (2-3 sentences — what people are actually posting, use their exact slang),
-  "key_character_or_moment": string (the EXACT proper noun or moment CT is latching onto — never vague),
+  "key_character_or_moment": string (the EXACT proper noun CT is using — a real name, nickname, ticker, or animal name. If no named entity is central, use a tight moment label. NEVER a vague description. Good: "Punch", "SMCI", "Hawk Tuah". Bad: "the monkey", "the chip company", "the viral moment"),
   "visual_potential": string (1 sentence — what would work as a pump.fun thumbnail),
   "trending_words": string[] (3-5 exact words/phrases CT is using)
 }
