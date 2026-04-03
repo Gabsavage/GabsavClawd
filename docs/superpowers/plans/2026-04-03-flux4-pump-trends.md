@@ -14,7 +14,7 @@
 
 | File | What changes |
 |---|---|
-| `src/database/db.js` | Add `getActiveTrends`, `getTrendForKeyword`, `getTrendsForToken` |
+| `src/database/db.js` | Add `getActiveTrends`, `getTrendForKeyword`, `getTrendForToken` |
 | `src/scout/grokScout.js` | Add `analyzePumpTrend(trend)` |
 | `src/creative/conceptGenerator.js` | Add `generateFromPumpTrend`; enrich `generateFromSignal` (Flux 1 TREND ALERT); enrich `generateVariants` (Flux 2 wave); add 4th param + Flux 4 loop in `generateConcepts` |
 | `src/index.js` | Add `runFlux4Cycle`, import `getActiveTrends`, wire into `main()` |
@@ -63,7 +63,7 @@ export async function getTrendForKeyword(keyword) {
   return rows[0] ?? null;
 }
 
-export async function getTrendsForToken(mint) {
+export async function getTrendForToken(mint) {
   const { rows } = await db.execute({
     sql: `SELECT keyword, display_name, trend_type, strength_score, token_count, tokens_json
           FROM pump_trends
@@ -96,7 +96,7 @@ Expected: array of 0–3 rows (may be empty if pump_trends has no active rows ri
 
 ```bash
 git add src/database/db.js
-git commit -m "feat(db): add getActiveTrends, getTrendForKeyword, getTrendsForToken read functions"
+git commit -m "feat(db): add getActiveTrends, getTrendForKeyword, getTrendForToken read functions"
 ```
 
 ---
@@ -247,7 +247,7 @@ import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRec
 ```
 Replace with:
 ```js
-import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers, getTrendForKeyword, getTrendsForToken } from '../database/db.js';
+import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers, getTrendForKeyword, getTrendForToken } from '../database/db.js';
 ```
 
 Current line 2:
@@ -490,7 +490,7 @@ git commit -m "feat(flux1): inject TREND ALERT from pump_trends into generateFro
 
 **Files:** Modify `src/creative/conceptGenerator.js`
 
-This modifies `generateVariants` (Flux 2) only. Adds `getTrendsForToken` lookup and conditional `narrativeBlock` logic.
+This modifies `generateVariants` (Flux 2) only. Adds `getTrendForToken` lookup and conditional `narrativeBlock` logic.
 
 - [ ] **Step 1: Add the wave trend lookup in `generateVariants` — insert after `analyzeTokenNarrative` call (around line 320)**
 
@@ -509,7 +509,7 @@ Replace with:
   const narrative = await analyzeTokenNarrative(migration);
 
   // Flux 2 enrichment: on-chain wave context for this token
-  const waveTrend = migration.mint ? await getTrendsForToken(migration.mint) : null;
+  const waveTrend = migration.mint ? await getTrendForToken(migration.mint) : null;
 
   // Build the narrative block for the prompt
   let narrativeBlock;
@@ -801,7 +801,7 @@ git commit -m "feat(flux4): add runFlux4Cycle and wire into main() — Flux 4 ev
 - **Spec coverage:**
   - ✅ Flux 4 pipeline (Task 3 + 6 + 7)
   - ✅ `analyzePumpTrend` using `/v1/responses` + `x_search` (Task 2)
-  - ✅ `getActiveTrends`, `getTrendForKeyword`, `getTrendsForToken` (Task 1)
+  - ✅ `getActiveTrends`, `getTrendForKeyword`, `getTrendForToken` (Task 1)
   - ✅ Flux 1 TREND ALERT first-match (Task 4)
   - ✅ CT silent fallback references TREND ALERT when non-empty (Task 4)
   - ✅ Flux 2 conditional wave: CT silent → wave as narrative (Task 5)
@@ -812,7 +812,7 @@ git commit -m "feat(flux4): add runFlux4Cycle and wire into main() — Flux 4 ev
 
 - **Type consistency:**
   - `analyzePumpTrend` imported in Task 3 Step 1, defined in Task 2 ✅
-  - `getTrendForKeyword` / `getTrendsForToken` imported in Task 3 Step 1, defined in Task 1 ✅
+  - `getTrendForKeyword` / `getTrendForToken` imported in Task 3 Step 1, defined in Task 1 ✅
   - `getActiveTrends` imported in Task 7 Step 1, defined in Task 1 ✅
   - `generateFromPumpTrend` referenced in Task 6 dedup loop, defined in Task 3 ✅
   - `pumpTrends` param added in Task 6 Step 1, used in `runFlux4Cycle` Task 7 ✅
