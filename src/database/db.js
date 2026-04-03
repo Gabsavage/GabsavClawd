@@ -261,4 +261,43 @@ export async function getApprovedConcepts(limit = 20) {
   return result.rows;
 }
 
+// --- Pump Trends ---
+
+export async function getActiveTrends(limit = 3) {
+  const { rows } = await db.execute({
+    sql: `SELECT keyword, display_name, trend_type, strength_score,
+                 token_count, tokens_json, detected_at, expires_at
+          FROM pump_trends
+          WHERE active = 1
+          ORDER BY strength_score DESC
+          LIMIT ?`,
+    args: [limit],
+  });
+  return rows;
+}
+
+export async function getTrendForKeyword(keyword) {
+  const { rows } = await db.execute({
+    sql: `SELECT keyword, display_name, trend_type, strength_score,
+                 token_count, tokens_json
+          FROM pump_trends
+          WHERE active = 1 AND LOWER(keyword) = LOWER(?)
+          LIMIT 1`,
+    args: [keyword],
+  });
+  return rows[0] ?? null;
+}
+
+export async function getTrendsForToken(mint) {
+  const { rows } = await db.execute({
+    sql: `SELECT keyword, display_name, trend_type, strength_score, token_count, tokens_json
+          FROM pump_trends
+          WHERE active = 1 AND tokens_json LIKE ?
+          ORDER BY strength_score DESC
+          LIMIT 1`,
+    args: [`%${mint}%`],
+  });
+  return rows[0] ?? null;
+}
+
 export default db;
