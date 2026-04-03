@@ -298,6 +298,100 @@ If CT is completely silent on this topic (not mentioned at all), return: {"ct_si
   }
 }
 
+export async function analyzePumpTrend(trend) {
+  const apiKey = process.env.XAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[GrokScout] XAI_API_KEY not set — skipping pump trend analysis.');
+    return null;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+
+  let sampleTokens = [];
+  try {
+    const parsed = JSON.parse(trend.tokens_json || '[]');
+    sampleTokens = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
+  } catch { /* ignore */ }
+
+  const samplesText = sampleTokens.length > 0
+    ? sampleTokens.map(t => `"${t.name || t}" ($${t.ticker || '?'})`).join(', ')
+    : 'none';
+
+  try {
+    const res = await fetch(GROK_RESPONSES_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-4-1-fast-non-reasoning',
+        include: ['no_inline_citations'],
+        tools: [{ type: 'x_search', from_date: twoDaysAgo, to_date: today }],
+        input: [
+          {
+            role: 'system',
+            content: 'You are a Crypto Twitter analyst. Search X/Twitter to find out how the crypto community is reacting to on-chain pump.fun trends. Report raw CT energy, slang, memes, and the specific angle degens are taking. Always respond in English with valid JSON only, no markdown.',
+          },
+          {
+            role: 'user',
+            content: `Today is ${today}. This keyword is trending on pump.fun right now: "${trend.keyword}"
+Display name: ${trend.display_name || trend.keyword}
+Trend type: ${trend.trend_type}
+${trend.token_count} tokens have been created around this keyword on pump.fun.
+Sample tokens in this wave: ${samplesText}
+
+Search X/Twitter and CT. Is the crypto community talking about this keyword? What angle are they taking? What's the meme?
+
+Return JSON:
+{
+  "meme_angle": string (the specific angle CT is exploiting — the joke/meme/absurd take, not the keyword itself),
+  "ct_reaction": string (2-3 sentences — what people are actually posting, use their exact slang),
+  "key_character_or_moment": string (the EXACT proper noun or moment CT is latching onto — never vague),
+  "visual_potential": string (1 sentence — what would work as a pump.fun thumbnail),
+  "trending_words": string[] (3-5 exact words/phrases CT is using)
+}
+
+If CT is completely silent on this keyword, return: {"ct_silent": true}`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[GrokScout] analyzePumpTrend error ${res.status}: ${text}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const msgOutput = data.output?.find(o => o.type === 'message');
+    const raw = msgOutput?.content?.[0]?.text ?? '';
+    const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch {
+      console.error('[GrokScout] analyzePumpTrend JSON parse failed. Raw:', content.slice(0, 300));
+      return null;
+    }
+
+    if (result.ct_silent) {
+      console.log(`[GrokScout] CT silent on pump trend "${trend.keyword}"`);
+      return null;
+    }
+
+    console.log(`[GrokScout] Pump trend CT angle for "${trend.keyword}": ${result.meme_angle?.slice(0, 80)}...`);
+    return result;
+
+  } catch (err) {
+    console.error('[GrokScout] analyzePumpTrend failed:', err.message);
+    return null;
+  }
+}
+
 // Standalone test
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const query = process.argv[2] || 'Trump Iran';
