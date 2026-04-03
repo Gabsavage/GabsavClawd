@@ -1,5 +1,5 @@
-import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers } from '../database/db.js';
-import { analyzeTokenNarrative, analyzeNewsMemePotential } from '../scout/grokScout.js';
+import { getTopThemes, getTopFormats, searchSimilarTokens, insertConcept, hasRecentConcept, hasRecentConceptExtended, hasRecentConceptByKeywords, getTopMovers, getTrendForKeyword, getTrendForToken } from '../database/db.js';
+import { analyzeTokenNarrative, analyzeNewsMemePotential, analyzePumpTrend } from '../scout/grokScout.js';
 import { enrichWithKnowYourMeme } from '../scout/perplexityScout.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -500,6 +500,91 @@ Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 }
 
 // ---------------------------------------------------------------------------
+// FLUX 4 — Pump.fun Trends
+// ---------------------------------------------------------------------------
+
+async function generateFromPumpTrend(trend) {
+  if (!trend) return null;
+
+  const memeContext = await analyzePumpTrend(trend);
+  const similar = await searchSimilarTokens([trend.keyword]);
+
+  let sampleTokens = [];
+  try {
+    const parsed = JSON.parse(trend.tokens_json || '[]');
+    sampleTokens = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
+  } catch (e) {
+    console.warn(`[conceptGenerator] generateFromPumpTrend: failed to parse tokens_json for "${trend.keyword}":`, e.message);
+  }
+
+  const safe = (s) => String(s || '').replace(/"/g, "'");
+  const samplesBlock = sampleTokens.length > 0
+    ? sampleTokens.map(t => `  - "${safe(t.name || t)}" ($${safe(t.ticker || '?')})`).join('\n')
+    : '  (none)';
+
+  const blacklistLines = [
+    ...sampleTokens.map(t => `  - "${safe(t.name || t)}" ($${safe(t.ticker || '?')})`),
+    ...similar.map(t => `  - "${t.name}" ($${t.ticker})`),
+  ];
+  const blacklistBlock = blacklistLines.length > 0
+    ? 'TOKENS THAT ALREADY EXIST (DO NOT REUSE ANY OF THESE NAMES):\n' + blacklistLines.join('\n')
+    : '';
+
+  let memeContextBlock;
+  if (memeContext) {
+    memeContextBlock = `THE REAL MEME ANGLE (what CT actually cares about):
+${memeContext.meme_angle}
+
+WHAT CT IS SAYING RIGHT NOW:
+${memeContext.ct_reaction}
+
+THE CHARACTER/MOMENT degens will latch onto:
+${memeContext.key_character_or_moment}
+
+VISUAL POTENTIAL: ${memeContext.visual_potential}
+
+TRENDING WORDS (use these in the name/ticker if possible):
+${(memeContext.trending_words || []).join(', ')}`;
+  } else {
+    memeContextBlock = `CT IS SILENT ON THIS KEYWORD.
+Reason from the on-chain wave itself: ${trend.token_count} tokens exist around "${trend.keyword}".
+What energy or joke drives degens to create this many tokens around this keyword?`;
+  }
+
+  const prompt = `ON-CHAIN TREND: ${trend.display_name || trend.keyword}
+KEYWORD: ${trend.keyword}
+TREND TYPE: ${trend.trend_type}
+TOKENS ON-CHAIN: ${trend.token_count} tokens created around this keyword
+STRENGTH SCORE: ${trend.strength_score}
+SAMPLE TOKENS IN THIS WAVE:
+${samplesBlock}
+
+${memeContextBlock}
+
+${blacklistBlock}
+
+STEP 1 — BEFORE YOU NAME ANYTHING: In one sentence, what is the on-chain energy driving this wave?
+Not the keyword itself — why are degens minting ${trend.token_count} tokens around "${trend.keyword}" right now?
+
+STEP 2 — CREATE A TOKEN that rides or subverts that wave. Do NOT just repeat the keyword.
+Find the specific angle — the irony, the dark humor, the unexpected take.
+
+Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
+{
+  "reasoning": string (your energy read from STEP 1, one sentence),
+  "name": string (max 32 chars),
+  "ticker": string,
+  "description": string (1 sentence, shitpost energy),
+  "narrative": string (1 sentence, why degens buy this),
+  "image_prompt": string (visual for pump.fun thumbnail),
+  "flux": "4"
+}`;
+
+  const concept = await callClaude(prompt);
+  return concept ? { ...concept, flux: '4', source_signal: trend.keyword } : null;
+}
+
+// ---------------------------------------------------------------------------
 // MAIN EXPORT
 // ---------------------------------------------------------------------------
 
@@ -578,5 +663,5 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
   return flat;
 }
 
-export { generateFromSignal, generateVariants, generateCrossover, generateFromCTTrend };
+export { generateFromSignal, generateVariants, generateCrossover, generateFromCTTrend, generateFromPumpTrend };
 export default generateConcepts;
