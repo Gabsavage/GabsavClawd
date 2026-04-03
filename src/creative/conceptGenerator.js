@@ -348,7 +348,7 @@ MEME ANGLE CT IS WORKING WITH: ${narrative.meme_angle}
 VIBE: ${narrative.vibe}
 
 WAVE CONTEXT (broader on-chain trend):
-${waveTrend.token_count} tokens around "${waveTrend.keyword}" | score: ${waveTrend.strength_score}
+${waveTrend.token_count} tokens around "${waveTrend.display_name || waveTrend.keyword}" | score: ${waveTrend.strength_score}
 This isn't isolated — it's a wave. Your token should fit the wave or counter it from an unexpected angle.`;
   } else if (!narrative && waveTrend) {
     // CT silent + wave found: wave IS the narrative
@@ -357,13 +357,14 @@ This isn't isolated — it's a wave. Your token should fit the wave or counter i
       const parsed = JSON.parse(waveTrend.tokens_json || '[]');
       waveSamples = Array.isArray(parsed) ? parsed.slice(0, 3) : [];
     } catch { /* ignore */ }
-    const waveSamplesText = waveSamples.length > 0
-      ? waveSamples.map(t => `"${t.name || t}" ($${t.ticker || '?'})`).join(', ')
+    const objectSamples = waveSamples.filter(t => t && typeof t === 'object');
+    const waveSamplesText = objectSamples.length > 0
+      ? objectSamples.map(t => `"${t.name || ''}" ($${t.ticker || '?'})`).join(', ')
       : 'none';
     narrativeBlock = `ON-CHAIN WAVE DETECTED — THIS TOKEN IS PART OF A TREND:
-Keyword: ${waveTrend.keyword} | ${waveTrend.token_count} tokens | score: ${waveTrend.strength_score}
+Keyword: ${waveTrend.display_name || waveTrend.keyword} | ${waveTrend.token_count} tokens | score: ${waveTrend.strength_score}
 Sample tokens in the wave: ${waveSamplesText}
-CT is silent on this specific token, but ${waveTrend.token_count} tokens exist around this keyword.
+CT is silent on this specific token, but ${waveTrend.token_count} tokens exist around "${waveTrend.display_name || waveTrend.keyword}".
 What energy drives degens to mint this many tokens? Build from that wave.`;
   } else if (narrative) {
     // CT found, no wave: original behavior
