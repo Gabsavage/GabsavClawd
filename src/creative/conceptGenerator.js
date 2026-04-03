@@ -569,6 +569,10 @@ Not the keyword itself — why are degens minting ${trend.token_count} tokens ar
 STEP 2 — CREATE A TOKEN that rides or subverts that wave. Do NOT just repeat the keyword.
 Find the specific angle — the irony, the dark humor, the unexpected take.
 
+EXAMPLE: keyword "CAT" with 12 tokens on-chain
+→ BAD: "Baby Cat" ($KITTEN) — just riffs on the word, could go on any cat token
+→ GOOD: "Catless" ($BALD) — the irony of the wave exhausting itself, funny without crypto context
+
 Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 {
   "reasoning": string (your energy read from STEP 1, one sentence),
