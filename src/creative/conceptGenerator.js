@@ -639,7 +639,7 @@ Return JSON only — put your STEP 1 reasoning in the "reasoning" field:
 // MAIN EXPORT
 // ---------------------------------------------------------------------------
 
-async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
+async function generateConcepts(signals = [], migrations = [], ctTrends = [], pumpTrends = []) {
   const tasks = [];
 
   const usedTopics = new Set();
@@ -679,6 +679,15 @@ async function generateConcepts(signals = [], migrations = [], ctTrends = []) {
       continue;
     }
     tasks.push(() => generateFromCTTrend(trend));
+  }
+
+  // Flux 4: up to 3 concepts from pump.fun on-chain trends
+  for (const trend of pumpTrends.slice(0, 3)) {
+    if (await hasRecentConceptByKeywords([trend.keyword])) {
+      console.log(`[flux4] ⏭ Skip "${trend.keyword}" — recent concept found by keyword`);
+      continue;
+    }
+    tasks.push(() => generateFromPumpTrend(trend));
   }
 
   const concepts = await runWithConcurrency(tasks, CONCURRENCY);
