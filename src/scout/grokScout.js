@@ -64,9 +64,17 @@ export async function analyzeTokenNarrative(token) {
   }
 
   const today = new Date().toISOString().split('T')[0];
+  const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+
+  // Build search terms from the cultural concept, not the ticker
+  const NOISE_WORDS = new Set(['coin', 'token', 'inu', 'dao', 'fi', 'swap', 'ai', 'gpt', 'the', 'of', 'a', 'on', 'in', 'is', 'to', 'sol', 'solana']);
+  const nameTerms = (token.name || '').toLowerCase().split(/[\s_\-]+/).filter(w => w.length > 2 && !NOISE_WORDS.has(w));
+  const themeTerms = (token.theme || '').toLowerCase().split(/[\s_\-,]+/).filter(w => w.length > 2 && !NOISE_WORDS.has(w));
+  const keywordTerms = (token.keywords || '').toLowerCase().split(/[\s_\-,]+/).filter(w => w.length > 2 && !NOISE_WORDS.has(w));
+  const searchTerms = [...new Set([...nameTerms, ...themeTerms, ...keywordTerms])].slice(0, 6).join(' ');
 
   try {
-    const res = await fetch(GROK_API_URL, {
+    const res = await fetch(GROK_RESPONSES_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,16 +82,20 @@ export async function analyzeTokenNarrative(token) {
       },
       body: JSON.stringify({
         model: 'grok-4-1-fast-non-reasoning',
-        messages: [
+        include: ['no_inline_citations'],
+        tools: [{ type: 'x_search', from_date: twoDaysAgo, to_date: today }],
+        input: [
           {
             role: 'system',
-            content: 'You are a Crypto Twitter analyst. Search X/Twitter and pump.fun community chatter to understand WHY specific tokens are pumping. Report raw CT energy, slang, and memes. Always respond in English with valid JSON only, no markdown.',
+            content: 'You are a Crypto Twitter analyst. Search X/Twitter to find the cultural moment, meme, or news event that a pump.fun token is referencing. The token name is a clue — search for the CONCEPT behind it, not the ticker. Report raw CT energy, slang, and memes. Always respond in English with valid JSON only, no markdown.',
           },
           {
             role: 'user',
-            content: `Today is ${today}. This token is pumping on pump.fun right now: "${token.name}" ($${token.ticker}) — +${token.price_change_h1 || 0}% in the last hour, $${token.volume_usd_h1 || 0} volume.
+            content: `Today is ${today}. This token is pumping on pump.fun: "${token.name}" ($${token.ticker}) — +${token.price_change_h1 || 0}% in the last hour, $${token.volume_usd_h1 || 0} volume.
 
-Search X/Twitter and CT. Find WHY it's pumping and what CT is saying.
+The token name references a cultural concept. Search X/Twitter for: "${searchTerms || token.name}"
+
+Find the REAL meme, event, or narrative CT is talking about that this token is riding. Don't search for the ticker — search for the underlying cultural moment.
 
 Return JSON:
 {
@@ -93,7 +105,7 @@ Return JSON:
   "vibe": "bullish" | "ironic" | "chaotic" | "mocking" | "hyping"
 }
 
-If CT is completely silent on this token (not mentioned anywhere), return: {"ct_silent": true}`,
+If CT is completely silent on this topic, return: {"ct_silent": true}`,
           },
         ],
       }),
@@ -106,7 +118,8 @@ If CT is completely silent on this token (not mentioned anywhere), return: {"ct_
     }
 
     const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content ?? '';
+    const msgOutput = data.output?.find(o => o.type === 'message');
+    const raw = msgOutput?.content?.[0]?.text ?? '';
     const content = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     let result;
     try {
